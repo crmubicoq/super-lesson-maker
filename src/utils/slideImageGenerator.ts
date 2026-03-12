@@ -14,6 +14,7 @@ interface SlideImageGeneratorOptions {
     slidesPerSection: number;
     styleReferenceImages?: string[];   // base64 다중 스타일 참고 이미지 배열
     onProgress?: PipelineCallback;
+    geminiApiKey?: string;
 }
 
 /**
@@ -75,7 +76,10 @@ export class SlideImageGenerator {
         try {
             const response = await fetch('/api/analyze-style', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(this.options.geminiApiKey && { 'X-Gemini-Key': this.options.geminiApiKey }),
+                },
                 body: JSON.stringify({
                     imagesBase64: this.options.styleReferenceImages || [],
                     textPrompt: this.options.userStyle,
@@ -177,7 +181,10 @@ export class SlideImageGenerator {
             try {
                 const res = await this.fetchWithRetry('/api/generate-slide-image', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.options.geminiApiKey && { 'X-Gemini-Key': this.options.geminiApiKey }),
+                    },
                     body: JSON.stringify({
                         slideTitle: slide.slideTitle,
                         bodyText: slide.bodyText,
@@ -244,7 +251,10 @@ export class SlideImageGenerator {
 
                 const res = await fetch('/api/validate-text', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.options.geminiApiKey && { 'X-Gemini-Key': this.options.geminiApiKey }),
+                    },
                     body: JSON.stringify({
                         imageBase64: imgBase64,
                         expectedTitle: slide.slideTitle,
@@ -333,7 +343,10 @@ export class SlideImageGenerator {
             try {
                 const res = await this.fetchWithRetry('/api/generate-slide-image', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.options.geminiApiKey && { 'X-Gemini-Key': this.options.geminiApiKey }),
+                    },
                     body: JSON.stringify({
                         slideTitle: slide.slideTitle,
                         bodyText: slide.bodyText,

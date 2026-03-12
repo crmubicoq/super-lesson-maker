@@ -6,7 +6,7 @@ import sharp from 'sharp';
 
 export const maxDuration = 180;
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-3-pro-image-preview';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const GENERATED_DIR = path.join(process.cwd(), 'public', 'generated', 'slides');
@@ -75,8 +75,9 @@ ${req.styleDescription}
 }
 
 export async function POST(request: NextRequest) {
+    const GEMINI_API_KEY = request.headers.get('X-Gemini-Key') || ENV_GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
-        return NextResponse.json({ error: 'GEMINI_API_KEY 미설정' }, { status: 500 });
+        return NextResponse.json({ error: 'Gemini API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
     try {

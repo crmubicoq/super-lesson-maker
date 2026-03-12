@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import FileUploader from '@/components/FileUploader';
-import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2 } from 'lucide-react';
+import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2, Settings } from 'lucide-react';
+import SettingsModal, { AIConfigState } from '@/components/SettingsModal';
 import { PdfProcessor } from '@/utils/pdfProcessor';
 import { TextProcessor } from '@/utils/textProcessor';
 import { SlideImageGenerator } from '@/utils/slideImageGenerator';
@@ -35,7 +36,7 @@ function AnalyzingProgress() {
   return (
     <div className="w-full max-w-md mt-8">
       <div className="flex justify-between items-end mb-2">
-        <span className="text-xs font-bold text-blue-400">명품 초안 설계 진행률 (Pro 모델 연산 중)</span>
+        <span className="text-xs font-bold text-blue-400">명품 초안 설계 진행률</span>
         <span className="text-xs font-bold text-slate-300">{Math.floor(progress)}%</span>
       </div>
       <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5 relative">
@@ -73,12 +74,30 @@ export default function Home() {
   const [pipelineProgress, setPipelineProgress] = useState<PipelineProgressType | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [styleReferenceImages, setStyleReferenceImages] = useState<string[]>([]);
+  const [isRefDragOver, setIsRefDragOver] = useState(false);
   const [slideTemplate, setSlideTemplate] = useState<SlideTemplateId>('lecture');
 
   // 새 상태: AI 분석 결과
   const [overallTitle, setOverallTitle] = useState('');
   const [addingSlide, setAddingSlide] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // AI 설정
+  const [aiConfig, setAiConfig] = useState<AIConfigState>({ provider: 'gemini', apiKey: '', geminiApiKey: '' });
+  const [showSettings, setShowSettings] = useState(false);
+
+  // localStorage에서 AI 설정 복원
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('slm_ai_config');
+      if (saved) setAiConfig(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const handleSaveAiConfig = (config: AIConfigState) => {
+    setAiConfig(config);
+    localStorage.setItem('slm_ai_config', JSON.stringify(config));
+  };
 
   // 파일 선택 (분석은 아직 시작하지 않음)
   const handleFilesSelected = (selectedFiles: File[]) => {
@@ -152,6 +171,10 @@ export default function Home() {
           try {
             ocrResponse = await fetch('/api/extract-pdf-ocr', {
               method: 'POST',
+              headers: {
+                ...(aiConfig.geminiApiKey && { 'X-Gemini-Key': aiConfig.geminiApiKey }),
+                ...(aiConfig.provider === 'gemini' && aiConfig.apiKey && { 'X-Gemini-Key': aiConfig.apiKey }),
+              },
               body: formData,
               signal: ocrController.signal,
             });
@@ -184,7 +207,11 @@ export default function Home() {
       try {
         response = await fetch('/api/generate-full-draft', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(aiConfig.apiKey && { 'X-AI-Provider': aiConfig.provider, 'X-API-Key': aiConfig.apiKey }),
+            ...(aiConfig.geminiApiKey && { 'X-Gemini-Key': aiConfig.geminiApiKey }),
+          },
           body: JSON.stringify({
             fullText,
             fileName: files.map(f => f.name).join(', '),
@@ -252,7 +279,7 @@ export default function Home() {
       let errorMessage = '분석 중 오류가 발생했습니다.';
       if (e instanceof Error || e.name) {
         if (e.name === 'TimeoutError' || e.name === 'AbortError' || (e.message && e.message.includes('aborted'))) {
-          errorMessage = 'AI 처리 시간이 초과되었습니다. Pro 모델은 복잡한 원고 분석에 수 분이 소요될 수 있습니다. 목표 슬라이드 장수를 줄이거나 잠시 후 다시 시도해주세요.';
+          errorMessage = 'AI 처리 시간이 초과되었습니다. 복잡한 원고 분석에 수 분이 소요될 수 있습니다. 목표 슬라이드 장수를 줄이거나 잠시 후 다시 시도해주세요.';
         } else if (e.message && e.message.includes('시간 초과') || e.message && e.message.includes('시간이 초과')) {
           errorMessage = e.message;
         } else {
@@ -280,6 +307,7 @@ export default function Home() {
         slidesPerSection: 0,
         styleReferenceImages,
         onProgress: (progress) => setPipelineProgress(progress),
+        geminiApiKey: aiConfig.geminiApiKey || (aiConfig.provider === 'gemini' ? aiConfig.apiKey : ''),
       });
 
       const updatedSlides = await generator.generateImagesForSlides([...slides]);
@@ -300,6 +328,52 @@ export default function Home() {
     } finally {
       setPipelineProgress(null);
     }
+  };
+
+  // 참고 이미지 파일 처리 (클릭 업로드 + 드래그 앤 드롭 공용)
+  const handleRefImageFiles = (files: File[]) => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    imageFiles.forEach(f => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setStyleReferenceImages(prev => prev.length < 5 ? [...prev, reader.result as string] : prev);
+      };
+      reader.readAsDataURL(f);
+    });
+  };
+
+  const handleRefDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    handleRefImageFiles(files);
+  };
+
+  const handleRefDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragOver(true);
+  };
+
+  const handleRefDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRefDragOver(false);
+  };
+
+  // 사이드바 클릭으로 이전 단계로 이동
+  const handleStepClick = (stepNumber: number) => {
+    const currentStepNum = getWorkflowStep();
+    if (stepNumber >= currentStepNum) return;
+    // 진행 중 단계에서는 이동 불가
+    if (step === 'analyzing' || step === 'generating') return;
+
+    const stepMap: Record<number, Step> = {
+      1: 'upload',
+      3: 'draft_preview',
+      4: 'configure_visual',
+      6: 'draft',
+    };
+    const target = stepMap[stepNumber];
+    if (target) setStep(target);
   };
 
   const getWorkflowStep = () => {
@@ -332,7 +406,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-[#0F172A] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden">
-      <Sidebar currentStep={getWorkflowStep()} />
+      <Sidebar currentStep={getWorkflowStep()} onStepClick={handleStepClick} />
 
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* TOP BAR */}
@@ -347,8 +421,25 @@ export default function Home() {
               <span className="text-xs font-medium text-slate-400">Generative AI Mode</span>
             </div>
           </div>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[10px] font-bold">G</div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+              title="AI 설정"
+            >
+              <Settings size={16} />
+            </button>
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[10px] font-bold">G</div>
+          </div>
         </div>
+
+        {/* Settings Modal */}
+        <SettingsModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          config={aiConfig}
+          onSave={handleSaveAiConfig}
+        />
 
         {/* CONTENT BODY */}
         <div className="flex-1 relative overflow-hidden flex flex-col">
@@ -362,6 +453,7 @@ export default function Home() {
               slides={slides}
               onUpdateSlide={handleUpdateSlide}
               onNextStep={() => setStep('export')}
+              onBack={() => setStep('configure_visual')}
               onAddSlide={(afterIndex) => {
                 const newSlide: Slide = {
                   id: `slide-new-${Date.now()}`,
@@ -391,6 +483,7 @@ export default function Home() {
                 }
               }}
               styleReferenceImages={styleReferenceImages}
+              geminiApiKey={aiConfig.geminiApiKey || (aiConfig.provider === 'gemini' ? aiConfig.apiKey : '')}
             />
           ) : (
             <div ref={mainContentRef} className="flex-1 overflow-y-auto custom-scrollbar z-10">
@@ -569,8 +662,13 @@ export default function Home() {
                         </div>
                         <p className="text-xs text-slate-400 mb-4">원하는 슬라이드 디자인의 참고 이미지를 업로드하면 해당 스타일을 분석하여 반영합니다.</p>
                         {styleReferenceImages.length > 0 ? (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div
+                            className="space-y-4"
+                            onDrop={handleRefDrop}
+                            onDragOver={handleRefDragOver}
+                            onDragLeave={handleRefDragLeave}
+                          >
+                            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-xl p-2 transition-all ${isRefDragOver ? 'ring-2 ring-amber-400 bg-amber-500/10' : ''}`}>
                               {styleReferenceImages.map((img, idx) => (
                                 <div key={idx} className="relative group aspect-video">
                                   <img src={img} alt={`스타일 참고 ${idx + 1}`} className="w-full h-full object-cover rounded-lg border border-white/10" />
@@ -591,16 +689,7 @@ export default function Home() {
                                     accept="image/png,image/jpeg,image/webp"
                                     multiple
                                     className="hidden"
-                                    onChange={(e) => {
-                                      const files = Array.from(e.target.files || []);
-                                      files.forEach(f => {
-                                        const reader = new FileReader();
-                                        reader.onload = () => {
-                                          setStyleReferenceImages(prev => [...prev.slice(0, 4), reader.result as string]); // 최대 5장 제한
-                                        };
-                                        reader.readAsDataURL(f);
-                                      });
-                                    }}
+                                    onChange={(e) => handleRefImageFiles(Array.from(e.target.files || []))}
                                   />
                                 </label>
                               )}
@@ -608,22 +697,22 @@ export default function Home() {
                             <p className="text-[10px] text-amber-400 text-right">최대 5장까지 첨부 가능</p>
                           </div>
                         ) : (
-                          <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all">
-                            <Image size={24} className="text-slate-500 mb-2" />
-                            <span className="text-xs text-slate-500">클릭하여 여러 장의 참고 이미지를 한 번에 선택(업로드)할 수 있습니다 (최대 5장)</span>
+                          <label
+                            className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isRefDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-white/10 hover:border-amber-500/40 hover:bg-amber-500/5'}`}
+                            onDrop={handleRefDrop}
+                            onDragOver={handleRefDragOver}
+                            onDragLeave={handleRefDragLeave}
+                          >
+                            <Image size={24} className={`mb-2 ${isRefDragOver ? 'text-amber-400' : 'text-slate-500'}`} />
+                            <span className={`text-xs ${isRefDragOver ? 'text-amber-300' : 'text-slate-500'}`}>
+                              {isRefDragOver ? '여기에 놓으세요' : '클릭 또는 드래그하여 참고 이미지를 업로드할 수 있습니다 (최대 5장)'}
+                            </span>
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp"
                               multiple
                               className="hidden"
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files || []);
-                                files.forEach(f => {
-                                  const reader = new FileReader();
-                                  reader.onload = () => setStyleReferenceImages(prev => [...prev.slice(0, 4), reader.result as string]);
-                                  reader.readAsDataURL(f);
-                                });
-                              }}
+                              onChange={(e) => handleRefImageFiles(Array.from(e.target.files || []))}
                             />
                           </label>
                         )}

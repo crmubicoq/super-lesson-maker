@@ -85,6 +85,36 @@
   - SlideEditor: 수정 지시 입력 UI + 적용 버튼
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 6.3 - 초안 생성 모델 전환 + Flash 프롬프트 최적화
+- [x] generate-full-draft/route.ts MODEL 변경 (gemini-2.5-flash)
+- [x] serverSlideUtils.ts MODEL 변경 (gemini-2.5-flash)
+- [x] generate-slide-content/route.ts MODEL 통일 (gemini-2.0-flash → gemini-2.5-flash)
+- [x] analyzeStructure() 프롬프트: 단계별 사고 지시 + JSON 예시 보강
+- [x] generateAllInOne() 프롬프트: 슬라이드 예시 추가 + 분량 규칙 강화
+- [x] extractKeyPoints() 프롬프트: 요약 분량 상향 (1500~2000자) + 수치 보존 강조
+- [x] buildBatchPrompt() 프롬프트: 좋은 슬라이드 예시 + 분량 규칙 전면 강화
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.3.1 - "Pro 모델" 문구 제거
+- [x] page.tsx: 진행바 레이블에서 "(Pro 모델 연산 중)" 제거
+- [x] page.tsx: 타임아웃 에러 메시지에서 "Pro 모델은" 제거
+- [x] route.ts: maxDuration 주석 "Pro 모델" → "AI 모델"로 변경
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.3.2 - 참고 이미지 드래그 앤 드롭 업로드
+- [x] page.tsx: handleRefImageFiles/handleRefDrop 헬퍼 함수 추가
+- [x] 초기 빈 영역: 드래그 앤 드롭 이벤트 + 드래그 오버 시각 피드백
+- [x] 이미지 그리드 영역: 드래그 앤 드롭으로 추가 업로드
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.4 - 워크플로우 단계 네비게이션 (이전 단계 돌아가기)
+- [x] Sidebar.tsx: 완료 단계 클릭 이동 (체크마크 + 호버 "이동" 텍스트)
+- [x] page.tsx: handleStepClick() 함수 + Sidebar onStepClick prop 전달
+- [x] SlideEditor.tsx: onBack prop + "이전 단계" 버튼 추가 (헤더 영역)
+- [x] AI 처리 단계(analyzing/generating) 이동 차단 (NON_CLICKABLE_STEPS)
+- [x] 뒤로 이동 시 기존 slides/이미지 상태 보존
+- [x] 빌드 검증 통과
+
 ## ✨ 최근 완료된 작업 (Recent Achievements)
 - [x] **서버사이드 로컬 폴더 기반 PDF 다운로드 기능 추가**: 브라우저 기본 다운로드 대신 `/api/save-export` 라우트를 구축하여, 프로젝트 최상위의 `outputs/[강의제목]/` 디렉터리에 `슈퍼교안_[강의제목].pdf`와 개별 슬라이드 원본 이미지(`slides/`)들을 한 번에 묶어서 깔끔하게 저장하도록 엔터프라이즈급 내보내기 환경 완성.
 - [x] **Gemini 2.5 Flash 기반 OCR 파이프라인 연동**: 스캔된 PDF/이미지 등 텍스트 메타데이터가 없는 문서 감지 시 빈 값(Hallucination 버그)으로 넘기지 않고 `Gemini Vision` 모델로 파일백하여 전체 텍스트를 정확하게 추출해내는 강력한 호환성 완성.
@@ -176,6 +206,19 @@
 - [x] + 버튼 클릭 시 AI 콘텐츠 자동 생성
   - 주변 슬라이드 맥락(최근 3개 제목)을 generate-slide-content API에 전달
   - 로딩 스피너 표시, 실패 시 폴백 슬라이드 삽입
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.5 - API 키 입력 UI + 멀티 AI 프로바이더 (Gemini / Claude)
+- [x] `src/utils/aiProvider.ts` 신규 생성 — 통합 텍스트 생성 추상화 (generateText, callGemini, callClaude)
+- [x] `src/components/SettingsModal.tsx` 신규 생성 — 설정 모달 UI (프로바이더 선택 + API 키 입력)
+- [x] `page.tsx` — aiConfig 상태 + localStorage 저장/복원 + 헤더 설정 버튼 + API 호출 헤더 전달
+- [x] `generate-full-draft/route.ts` — generateText() 적용 + config 매개변수 전달
+- [x] `generate-slide-content/route.ts` — generateText() 적용 리라이트
+- [x] `analyze-toc/route.ts` — generateText() 적용 리라이트
+- [x] `serverSlideUtils.ts` — extractKeyPoints/generateSlidesFromPrompt에 config 매개변수 추가
+- [x] 이미지 전용 라우트 5개 (generate-slide-image, partial-edit, validate-text, analyze-style, extract-pdf-ocr) — X-Gemini-Key 헤더 fallback 추가
+- [x] `SlideEditor.tsx` — geminiApiKey prop 전달 (partial-edit, generate-slide-image)
+- [x] `slideImageGenerator.ts` — geminiApiKey 옵션 전달 (analyze-style, validate-text, generate-slide-image)
 - [x] 빌드 검증 통과
 
 ## [LATER] Milestone 7 - 기능 고도화

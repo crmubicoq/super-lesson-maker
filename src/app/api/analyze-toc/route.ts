@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-2.0-flash';
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+import { generateText, getAIConfigFromHeaders } from '@/utils/aiProvider';
 
 export const maxDuration = 60;
 
@@ -52,9 +49,11 @@ interface ChapterItem {
 }
 
 export async function POST(request: NextRequest) {
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your-api-key-here') {
+    const config = getAIConfigFromHeaders(request.headers);
+
+    if (!config.apiKey) {
         return NextResponse.json(
-            { error: 'GEMINI_API_KEY가 설정되지 않았습니다.' },
+            { error: 'API 키가 설정되지 않았습니다. 상단 설정에서 API 키를 입력해주세요.' },
             { status: 500 }
         );
     }
@@ -74,21 +73,11 @@ export async function POST(request: NextRequest) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-        let response: Response;
+        let rawResponse: string;
         try {
-            response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-goog-api-key': GEMINI_API_KEY,
-                },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        responseMimeType: 'application/json',
-                        temperature: 0.5,
-                    },
-                }),
+            rawResponse = await generateText(config, prompt, {
+                temperature: 0.5,
+                jsonMode: true,
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
@@ -100,33 +89,13 @@ export async function POST(request: NextRequest) {
             throw fetchError;
         }
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Gemini TOC API Error]', response.status, errorText);
-            return NextResponse.json(
-                { error: `Gemini API 오류: ${response.status}` },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        const candidates = data.candidates;
-
-        if (!candidates || candidates.length === 0) {
-            return NextResponse.json({ error: '응답이 없습니다.' }, { status: 500 });
-        }
-
-        const textPart = candidates[0].content?.parts?.find((p: { text?: string }) => p.text);
-        if (!textPart) {
-            return NextResponse.json({ error: '텍스트 응답을 찾을 수 없습니다.' }, { status: 500 });
-        }
-
         let parsed: { chapters?: ChapterItem[]; summary?: string; styleSuggestions?: string };
         try {
-            parsed = JSON.parse(textPart.text);
+            const cleanText = rawResponse.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
+            parsed = JSON.parse(cleanText);
         } catch {
-            console.error('[JSON Parse Error]', textPart.text?.substring(0, 200));
-            return NextResponse.json({ error: 'Gemini 응답 JSON 파싱 실패' }, { status: 500 });
+            console.error('[JSON Parse Error]', rawResponse?.substring(0, 200));
+            return NextResponse.json({ error: 'AI 응답 JSON 파싱 실패' }, { status: 500 });
         }
 
         // chapters 배열 추출

@@ -3,9 +3,7 @@
  * generate-slide-content, generate-full-draft 양쪽에서 사용
  */
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-2.5-pro'; // 테스트용으로 고성능 Pro 모델 지정 (기존: gemini-2.0-flash)
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+import { generateText, AIConfig } from '@/utils/aiProvider';
 
 export const CHUNK_SIZE = 4000;
 
@@ -17,7 +15,7 @@ export const VALID_LAYOUTS = [
 /**
  * Progressive Summarization: 긴 원고를 청크로 나눠 핵심을 추출한 뒤 합산
  */
-export async function extractKeyPoints(rawText: string, sectionTitle: string): Promise<string> {
+export async function extractKeyPoints(rawText: string, sectionTitle: string, config: AIConfig): Promise<string> {
     const chunks: string[] = [];
     for (let i = 0; i < rawText.length; i += CHUNK_SIZE) {
         chunks.push(rawText.substring(i, i + CHUNK_SIZE));
@@ -35,7 +33,8 @@ export async function extractKeyPoints(rawText: string, sectionTitle: string): P
         await Promise.all(batch.map(async (chunk, batchIndex) => {
             const idx = i + batchIndex;
             const prompt = `당신은 강의 교안 전문가입니다.
-아래 원고 텍스트에서 강의 슬라이드에 반드시 포함해야 할 핵심 내용을 추출하세요.
+아래 원고 텍스트에서 강의 슬라이드에 반드시 포함해야 할 핵심 내용을 풍부하게 추출하세요.
+**간결하게 줄이려 하지 말고, 원고의 구체적인 수치·사례·설명을 최대한 살려서 추출하세요.**
 
 ## 섹션 제목
 ${sectionTitle}
@@ -45,37 +44,17 @@ ${chunk}
 
 ## 추출 규칙
 1. 핵심 개념, 정의, 원리를 빠짐없이 추출
-2. 중요한 수치, 통계, 사례를 보존
+2. 중요한 수치, 통계, 사례를 원본 그대로 보존 (숫자와 고유명사를 절대 생략하지 마세요)
 3. 단계별 프로세스나 절차가 있으면 순서 유지
 4. 불필요한 접속사, 반복 표현은 제거
 5. 원문의 핵심 의미를 왜곡하지 않도록 주의
 6. 결과는 한국어 구조화된 텍스트로 출력 (마크다운 불릿 형태)
-7. 약 1000~1500자로 요약`;
+7. **1500~2000자**로 풍부하게 요약 (너무 짧게 요약하면 슬라이드 내용이 빈약해집니다)`;
 
             try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': GEMINI_API_KEY!,
-                    },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: 0.3 },
-                    }),
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const textPart = data.candidates?.[0]?.content?.parts?.find((p: { text?: string }) => p.text);
-                    if (textPart?.text) {
-                        extractedParts[idx] = textPart.text;
-                        console.log(`[extractKeyPoints] 청크 ${idx + 1}/${chunks.length} 핵심 추출 완료 (${textPart.text.length}자)`);
-                    }
-                } else {
-                    console.warn(`[extractKeyPoints] 청크 ${idx + 1} API 실패 (${response.status}), 원문 일부 사용`);
-                    extractedParts[idx] = chunk.substring(0, 1500);
-                }
+                const result = await generateText(config, prompt, { temperature: 0.3 });
+                extractedParts[idx] = result;
+                console.log(`[extractKeyPoints] 청크 ${idx + 1}/${chunks.length} 핵심 추출 완료 (${result.length}자)`);
             } catch (error) {
                 console.warn(`[extractKeyPoints] 청크 ${idx + 1} 에러, 원문 일부 사용:`, error);
                 extractedParts[idx] = chunk.substring(0, 1500);
@@ -138,6 +117,8 @@ export function buildBatchPrompt(
 아래는 원고 텍스트 원본과, 이미 앞서 구조 분석을 통해 확정된 '슬라이드 초안(메타데이터)' 배열입니다.
 당신의 임무는 주어진 원고 내용 **안에서만** 정보를 추출하여, 각 슬라이드의 실제 내용(제목, 본문, 요약, 강사 대본 등)을 촘촘하고 풍부하게 채워 넣는 것입니다.
 
+**[중요] 간결하게 요약하려 하지 마세요. 원고의 구체적인 수치, 사례, 상세 설명을 최대한 포함하여 각 슬라이드의 내용을 풍부하고 상세하게 작성하세요.**
+
 ## 사용자 디자인 스타일 요청
 ${userStyle || '전문적이고 깔끔한 디자인'}
 
@@ -158,7 +139,7 @@ ${templateStructure}
 ### 1) 화면 구성 (→ layout 선택)
 슬라이드의 시각적 레이아웃을 결정합니다. 내용의 성격에 따라 적절한 레이아웃을 선택하세요:
 - 숫자/통계 강조 → "title_body" (큰 숫자 + 설명)
-- 핵심 포인트 나열 → "bullet_list" (bulletPoints 3-5개)
+- 핵심 포인트 나열 → "bullet_list" (bulletPoints 4-5개)
 - 4개 독립 개념 비교 → "grid_2x2" (contentBlocks 정확히 4개, 각각 subtitle + body)
 - 3개 관련 개념 비교 → "grid_1x3" (contentBlocks 정확히 3개)
 - 상세 설명/인용 → "title_body" (bodyText + 선택적 bulletPoints)
@@ -169,16 +150,29 @@ ${templateStructure}
 ### 2) 핵심 내용 (→ slideTitle, bulletPoints, bodyText, contentBlocks)
 원고에서 해당 슬라이드에 담을 핵심 정보를 추출하세요:
 - slideTitle: 청중의 관심을 끄는 임팩트 있는 제목 (예: "핵심 인사이트 3가지", "우리가 주목해야 할 사실")
-- bulletPoints: 각 포인트는 핵심 키워드 + 구체적 수치/사례를 풍부하게 포함 (최소 3개, 각 1~2문장)
-- bodyText: 슬라이드에 표시할 핵심 메시지 (충분히 상세하게 3~4문장 이상, 300자 내외)
-- contentBlocks: 각 블록은 subtitle(키워드) + body(핵심 설명 1~2문장)
+- bulletPoints: 각 포인트는 핵심 키워드 + 구체적 수치/사례를 풍부하게 포함 (반드시 4~5개, 각 80~120자)
+- bodyText: 슬라이드에 표시할 핵심 메시지 (충분히 상세하게 3~4문장 이상, 300~500자)
+- contentBlocks: 각 블록은 subtitle(키워드) + body(핵심 설명 2~3문장)
 
 ### 3) 강사 스크립트 팁 (→ speakerNotes)
 강사가 이 슬라이드를 설명할 때 활용할 수 있는 실전 스크립트를 작성하세요:
 - 도입 멘트: 청중의 관심을 끄는 질문이나 공감대 형성 멘트 (예: "여러분, 혹시 이런 경험 있으신가요?", "이 데이터가 의미하는 바는 무엇일까요?")
 - 핵심 전달 포인트: 반드시 강조해야 할 내용
 - 전환 멘트: 다음 슬라이드로 자연스럽게 넘어가는 말
-- 분량: 2-4문장, 실제 말하듯 자연스러운 구어체
+- 분량: 4-6문장, 실제 말하듯 자연스러운 구어체
+
+## 좋은 슬라이드 예시 (이 수준의 상세함으로 모든 슬라이드를 작성하세요)
+{
+  "slideTitle": "데이터가 말해주는 핵심 트렌드",
+  "layout": "bullet_list",
+  "bulletPoints": [
+    "2024년 시장 규모 약 4조 5천억 원으로 전년 대비 23% 성장 — 3년 연속 두 자릿수 성장세 유지",
+    "상위 5개 기업의 시장 점유율 합계 68% — 특히 A사가 단독 35%로 독보적 1위 차지",
+    "소비자 설문 결과 82%가 '품질'을 최우선 구매 기준으로 선택 — 가격(12%)보다 압도적",
+    "신규 진입 기업 수 전년 대비 40% 증가 — 진입 장벽이 낮아지고 경쟁이 심화되는 추세"
+  ],
+  "speakerNotes": "여러분, 이 숫자들이 의미하는 바가 무엇일까요? 시장이 빠르게 성장하고 있다는 건 그만큼 기회가 많다는 뜻이기도 하지만, 동시에 경쟁도 치열해지고 있다는 의미입니다. 특히 소비자의 82%가 품질을 최우선으로 꼽았다는 점에 주목해주세요. 단순히 저렴한 가격으로는 승부할 수 없는 시장이 되었습니다. 그렇다면 우리는 어떤 전략을 취해야 할까요? 다음 슬라이드에서 구체적인 방안을 살펴보겠습니다."
+}
 
 ## 출력 형식 (JSON 배열)
 {
@@ -203,15 +197,15 @@ ${templateStructure}
 5. speakerNotes는 실전 강의에서 바로 활용 가능한 자연스러운 구어체 (강력하고 풍부한 설명 추가)
 6. 선택한 layout에 해당하는 필드만 채울 것
 7. grid_2x2는 contentBlocks 4개, grid_1x3는 3개 — 정확히 맞출 것
-8. bulletPoints는 각 80자 내외, bodyText는 300자 내외로 기존보다 훨씬 상세하게 작성
+8. bulletPoints는 각 80~120자, bodyText는 300~500자로 풍부하고 상세하게 작성
 
 ## [중요] 콘텐츠 균일성 및 풍부함 — 반드시 준수
 - **(절대 규칙) 제목만 덩그러니 있고 본문 내용이 텅 빈 슬라이드는 어떠한 경우에도 생성해서는 안 됩니다. 모든 슬라이드에는 원고에서 추출한 구체적이고 실질적인 정보(수치, 사례, 상세 설명)가 꽉 차 있어야 합니다.**
-- bullet_list 레이아웃: bulletPoints 최소 3개~5개, 각 포인트가 단순 단어가 아닌 완전한 구/절로 구체적일 것
+- bullet_list 레이아웃: bulletPoints 반드시 4~5개, 각 포인트가 단순 단어가 아닌 완전한 구/절로 구체적일 것
 - title_body 레이아웃: bodyText에 반드시 3문장 이상의 길고 상세한 실질적 설명 포함
-- grid_2x2/grid_1x3 레이아웃: 각 contentBlock의 body에 반드시 2문장 이상 상세 설명 포함
-- speakerNotes: 모든 슬라이드에 반드시 3~5문장 이상의 상세한 대본 작성 (빈 문자열 금지)
-- 슬라이드의 내용이 부족해보이지 않도록 원고의 디테일을 최대한 살려서 배분하세요`;
+- grid_2x2/grid_1x3 레이아웃: 각 contentBlock의 body에 반드시 2~3문장 상세 설명 포함
+- speakerNotes: 모든 슬라이드에 반드시 4~6문장 이상의 상세한 대본 작성 (빈 문자열 금지)
+- **슬라이드의 내용이 부족해보이지 않도록 원고의 디테일을 최대한 살려서 배분하세요. 짧게 요약하면 안 됩니다.**`;
 }
 
 export interface SlideContent {
@@ -292,12 +286,13 @@ export async function generateSlidesFromPrompt(
     sectionTitle: string,
     slidesPerSection: number,
     userStyle: string,
-    template: string
+    template: string,
+    config: AIConfig
 ): Promise<SlideContent[]> {
     // Progressive Summarization
     let processedText = rawText || '';
     if (processedText.length > CHUNK_SIZE) {
-        processedText = await extractKeyPoints(processedText, sectionTitle);
+        processedText = await extractKeyPoints(processedText, sectionTitle, config);
     }
 
     const prompt = buildBatchPrompt(processedText, sectionTitle, slidesPerSection, userStyle, template);
@@ -305,60 +300,33 @@ export async function generateSlidesFromPrompt(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 280000); // 4분 40초
 
-    console.log(`[generateSlidesFromPrompt] "${sectionTitle}" Gemini API 호출 시작 (${slidesPerSection}장, 텍스트 ${processedText.length}자)...`);
+    console.log(`[generateSlidesFromPrompt] "${sectionTitle}" ${config.provider} API 호출 시작 (${slidesPerSection}장, 텍스트 ${processedText.length}자)...`);
 
-    let response: Response;
+    let rawResponse: string;
     try {
-        response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': GEMINI_API_KEY!,
-            },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.7,
-                },
-            }),
+        rawResponse = await generateText(config, prompt, {
+            temperature: 0.7,
+            jsonMode: true,
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        console.log(`[generateSlidesFromPrompt] "${sectionTitle}" Gemini API 응답 수신: ${response.status}`);
+        console.log(`[generateSlidesFromPrompt] "${sectionTitle}" API 응답 수신 (${rawResponse.length}자)`);
     } catch (fetchError: any) {
         clearTimeout(timeoutId);
         if (fetchError.name === 'AbortError') {
             console.error(`[generateSlidesFromPrompt] "${sectionTitle}" 타임아웃 (4분 40초 초과)`);
             throw new Error(`"${sectionTitle}" 섹션 슬라이드 생성 시간이 초과되었습니다. 다시 시도해주세요.`);
         }
-        console.error(`[generateSlidesFromPrompt] "${sectionTitle}" fetch 오류:`, fetchError.message);
+        console.error(`[generateSlidesFromPrompt] "${sectionTitle}" API 오류:`, fetchError.message);
         throw fetchError;
-    }
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API 오류: ${response.status} — ${errorText.substring(0, 200)}`);
-    }
-
-    const data = await response.json();
-    const candidates = data.candidates;
-
-    if (!candidates || candidates.length === 0) {
-        throw new Error('응답이 없습니다.');
-    }
-
-    const textPart = candidates[0].content?.parts?.find((p: { text?: string }) => p.text);
-    if (!textPart) {
-        throw new Error('텍스트 응답을 찾을 수 없습니다.');
     }
 
     let parsed: any;
     try {
-        const cleanText = textPart.text.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
+        const cleanText = rawResponse.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
         parsed = JSON.parse(cleanText);
     } catch (e) {
-        console.error('[generateSlidesFromPrompt] JSON parsing failed. length:', textPart.text.length);
+        console.error('[generateSlidesFromPrompt] JSON parsing failed. length:', rawResponse.length);
         throw new Error('AI 응답이 올바른 형식이 아니거나 재생성 도중 끊겼습니다 (JSON 파싱 오류). 다시 시도해주세요.');
     }
 

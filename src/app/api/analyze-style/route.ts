@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-2.0-flash';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
@@ -8,8 +8,9 @@ const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL
  * 스타일 참고 이미지를 Gemini Vision으로 분석하여 StyleProfile 반환
  */
 export async function POST(request: NextRequest) {
+    const GEMINI_API_KEY = request.headers.get('X-Gemini-Key') || ENV_GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
-        return NextResponse.json({ error: 'GEMINI_API_KEY 미설정' }, { status: 500 });
+        return NextResponse.json({ error: 'Gemini API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
     try {

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTextForPageRange } from '@/utils/textSplitter';
 import { generateSlidesFromPrompt, SlideContent } from '@/utils/serverSlideUtils';
+import { generateText, getAIConfigFromHeaders, AIConfig } from '@/utils/aiProvider';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-2.5-pro'; // 테스트용으로 고성능 Pro 모델 지정 (기존: gemini-2.0-flash)
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-
-export const maxDuration = 600; // 10분 (Pro 모델 지연시간 대응)
+export const maxDuration = 600; // 10분 (AI 모델 지연시간 대응)
 
 interface ChapterAnalysis {
     title: string;
@@ -24,11 +21,18 @@ interface StructureAnalysis {
 /**
  * Phase 1: 원고 구조 분석 — 강의 제목, 학습목표, 챕터 구성 + 챕터별 추천 슬라이드 수
  */
-async function analyzeStructure(fullText: string, fileName: string, template: string, targetCount?: number): Promise<StructureAnalysis> {
+async function analyzeStructure(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number): Promise<StructureAnalysis> {
     const templateDesc = template === 'lecture' ? '강의 교안' : template === 'seminar' ? '세미나/발표' : '자유형 프레젠테이션';
     const targetText = targetCount ? `**총 목표 슬라이드 수: ${targetCount}장** (이 전체 분량에 맞춰 챕터별 슬라이드 수와 챕터 개수를 유연하게 분배하세요. 목표 장수가 10장 이하라면 챕터를 1~3개로 대폭 줄이세요.)` : '적절한 분량으로 촘촘히 분해하세요';
 
     const prompt = `당신은 사용자가 제공한 문서만을 기반으로 분석하고 내용을 구성하는 엄격한 AI 연구 보조원(NotebookLM 스타일)이자 프레젠테이션 설계자입니다.
+
+## 작업 절차 (단계별로 사고하세요)
+1단계: 원고 전체를 처음부터 끝까지 읽고 주제와 핵심 논점을 파악하세요.
+2단계: 원고의 서론-본론-결론 구조를 파악하고, 자연스러운 챕터 경계를 찾으세요.
+3단계: 각 챕터에 적절한 슬라이드 수를 배분하세요.
+4단계: 아래 JSON 형식에 맞춰 결과를 출력하세요.
+
 아래 원고 텍스트를 깊이 있게 분석하여 ${templateDesc} 슬라이드를 위한 전체 구조를 설계하세요.
 
 ## 원고 파일명
@@ -45,10 +49,14 @@ ${fullText.substring(0, 12000)}
    - [Page N] 마커가 있으면 페이지 범위를 지정
 5. 원고에 어울리는 디자인 스타일을 제안하세요
 
-## 출력 형식 (JSON)
+## 출력 형식 (JSON) — 반드시 이 구조를 정확히 따르세요
 {
-  "overallTitle": "강의 전체 제목",
-  "learningObjectives": ["학습목표1", "학습목표2", "학습목표3"],
+  "overallTitle": "강의 전체 제목 (원고 핵심 주제를 반영한 임팩트 있는 제목)",
+  "learningObjectives": [
+    "~을 이해한다 (구체적인 학습목표 1)",
+    "~을 설명할 수 있다 (구체적인 학습목표 2)",
+    "~을 적용할 수 있다 (구체적인 학습목표 3)"
+  ],
   "chapters": [
     {
       "title": "챕터 제목 (20자 이내)",
@@ -56,40 +64,30 @@ ${fullText.substring(0, 12000)}
       "suggestedSlideCount": 4
     }
   ],
-  "styleSuggestions": "디자인 스타일 제안"
+  "styleSuggestions": "디자인 스타일 제안 (예: Professional, Minimalist)"
 }
 
 ## 필수 규칙
 0. **[최우선 절대 원칙 - NotebookLM 모드] 당신은 외부 지식을 절대 사용하지 않습니다. 절대로 제공된 원고 텍스트에 없는 내용을 스스로 지어내거나 추가하지 마세요. 문맥을 추론하되, 반드시 원고 내의 정보와 팩트만을 바탕으로 도출해야 합니다.**
 1. **[논리 구조 보존] 원고의 전개 논리와 시간적/논리적 흐름이 절대 끊기지 않거나 섞이지 않도록, 서론-본론-결론의 유기적인 맥락을 완전히 유지하며 챕터를 순서대로 구성하세요.**
 2. 모든 텍스트는 한국어
-2. 챕터 제목은 20자 이내
-3. 챕터는 목표 슬라이드 수에 맞게 유동적으로 배분 (1개~8개)
-4. pageRange는 "시작-끝" 형식
-5. suggestedSlideCount는 챕터당 2~10 사이로 자유롭게 배분하되, 총합이 목표 장수와 최대한 일치하도록 하세요
-6. 마지막 챕터의 끝 페이지는 전체 페이지 수와 일치
-7. [Page N] 마커가 없으면 균등 분할
-8. **단 한 문단이라도 버리지 말고 최대한 촘촘하게 나누어 슬라이드 수를 정확히 확보하세요.**`;
+3. 챕터 제목은 20자 이내
+4. 챕터는 목표 슬라이드 수에 맞게 유동적으로 배분 (1개~8개)
+5. pageRange는 "시작-끝" 형식
+6. suggestedSlideCount는 챕터당 2~10 사이로 자유롭게 배분하되, 총합이 목표 장수와 최대한 일치하도록 하세요
+7. 마지막 챕터의 끝 페이지는 전체 페이지 수와 일치
+8. [Page N] 마커가 없으면 균등 분할
+9. **단 한 문단이라도 버리지 말고 최대한 촘촘하게 나누어 슬라이드 수를 정확히 확보하세요.**`;
 
     const structureController = new AbortController();
     const structureTimeout = setTimeout(() => structureController.abort(), 300000); // 5분
 
-    console.log('[analyzeStructure] Gemini API 호출 시작...');
-    let response: Response;
+    console.log(`[analyzeStructure] ${config.provider} API 호출 시작...`);
+    let rawText: string;
     try {
-        response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': GEMINI_API_KEY!,
-            },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.5,
-                },
-            }),
+        rawText = await generateText(config, prompt, {
+            temperature: 0.5,
+            jsonMode: true,
             signal: structureController.signal,
         });
         clearTimeout(structureTimeout);
@@ -100,24 +98,14 @@ ${fullText.substring(0, 12000)}
         }
         throw fetchError;
     }
-    console.log(`[analyzeStructure] Gemini API 응답 수신: ${response.status}`);
-
-    if (!response.ok) {
-        const errBody = await response.text().catch(() => '');
-        console.error('[analyzeStructure] API 실패:', response.status, errBody.substring(0, 300));
-        throw new Error(`구조 분석 API 오류: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const textPart = data.candidates?.[0]?.content?.parts?.find((p: { text?: string }) => p.text);
-    if (!textPart?.text) throw new Error('구조 분석 응답 없음');
+    console.log(`[analyzeStructure] API 응답 수신 (${rawText.length}자)`);
 
     let parsed;
     try {
-        const cleanText = textPart.text.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
+        const cleanText = rawText.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
         parsed = JSON.parse(cleanText);
     } catch (e) {
-        console.error('[analyzeStructure] JSON parsing failed. length:', textPart.text.length);
+        console.error('[analyzeStructure] JSON parsing failed. length:', rawText.length);
         throw new Error('AI 분석 중 응답 형식이 깨졌습니다 (JSON 파싱 오류). 원고 내용이 너무 복잡하여 중간에 분석이 끊겼을 수 있습니다.');
     }
 
@@ -176,7 +164,7 @@ interface DraftSlide extends SlideContent {
 /**
  * 짧은 텍스트용: 구조 분석 + 전체 슬라이드를 단일 API 호출로 생성
  */
-async function generateAllInOne(fullText: string, fileName: string, template: string, targetCount?: number): Promise<{
+async function generateAllInOne(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number): Promise<{
     overallTitle: string;
     learningObjectives: string[];
     slides: DraftSlide[];
@@ -189,6 +177,8 @@ async function generateAllInOne(fullText: string, fileName: string, template: st
 
     const prompt = `당신은 사용자가 제공한 문서만을 완벽하게 숙지하고 분석하는 엄격한 AI 연구 보조원(NotebookLM 스타일)이자 슬라이드 설계자입니다.
 아래 원고를 분석하여, 오직 원고의 내용만으로 완성된 ${templateDesc} 슬라이드 세트를 한 번에 생성하세요.
+
+**[중요] 간결하게 요약하려 하지 마세요. 원고의 구체적인 수치, 사례, 상세 설명을 최대한 포함하여 각 슬라이드의 내용을 풍부하고 상세하게 작성하세요.**
 
 ## 원고 파일명
 ${fileName}
@@ -229,57 +219,52 @@ ${isLecture ? `- 첫 슬라이드: cover 레이아웃 (강의 제목, slideRole:
 ## 사용 가능한 레이아웃
 cover, title_body, bullet_list, grid_2x2, grid_1x3, content_image, section_divider
 
+## 본문 슬라이드 예시 (이 수준의 상세함으로 모든 슬라이드를 작성하세요)
+{
+  "slideTitle": "데이터가 말해주는 핵심 트렌드",
+  "layout": "bullet_list",
+  "bulletPoints": [
+    "2024년 시장 규모 약 4조 5천억 원으로 전년 대비 23% 성장 — 3년 연속 두 자릿수 성장세 유지",
+    "상위 5개 기업의 시장 점유율 합계 68% — 특히 A사가 단독 35%로 독보적 1위 차지",
+    "소비자 설문 결과 82%가 '품질'을 최우선 구매 기준으로 선택 — 가격(12%)보다 압도적",
+    "신규 진입 기업 수 전년 대비 40% 증가 — 진입 장벽이 낮아지고 경쟁이 심화되는 추세"
+  ],
+  "speakerNotes": "여러분, 이 숫자들이 의미하는 바가 무엇일까요? 시장이 빠르게 성장하고 있다는 건 그만큼 기회가 많다는 뜻이기도 하지만, 동시에 경쟁도 치열해지고 있다는 의미입니다. 특히 소비자의 82%가 품질을 최우선으로 꼽았다는 점에 주목해주세요. 단순히 저렴한 가격으로는 승부할 수 없는 시장이 되었습니다. 그렇다면 우리는 어떤 전략을 취해야 할까요? 다음 슬라이드에서 구체적인 방안을 살펴보겠습니다.",
+  "slideRole": "content"
+}
+
 ## 필수 규칙
 0. **[최우선 절대 원칙 - NotebookLM 모드] 당신은 철저히 제공된 문서 내용 안에서만 작동합니다. 원고에 없는 내용을 창작하거나 외부 지식을 덧붙이지 마세요(Hallucination 절대 금지). 주어진 원고의 문맥과 정보만을 사용해 요약하고 재구성해야 합니다.**
 1. **[논리 구조 보존] 슬라이드 간의 내용이 뒤죽박죽 섞이거나 비약이 발생하지 않도록, 원고의 원래 서술 순서와 인과관계를 철저히 유지하며 매끄러운 스토리라인을 이어가세요.**
 2. 모든 텍스트는 한국어
-2. 연속된 슬라이드가 같은 레이아웃을 사용하지 않도록 분배
-3. slideTitle은 청중 관심을 끌도록 임팩트 있게
-4. 원고의 핵심 정보, 수치, 사례를 빠짐없이 포함하며, **요구된 장수를 맞추기 위해 슬라이드를 잘게 쪼개세요.**
-5. **(절대 규칙) 제목만 덩그러니 있고 본문 내용이 텅 빈 슬라이드는 어떠한 경우에도 생성해서는 안 됩니다. 모든 슬라이드에는 원고에서 추출한 구체적이고 실질적인 정보(수치, 사례, 상세 설명)가 꽉 차 있어야 합니다.**
-6. bulletPoints 최소 3개, bodyText 2~4문장 이상, speakerNotes 3문장 이상 (내용을 풍부하게)
-7. grid_2x2는 contentBlocks 4개, grid_1x3는 3개
-7. 총 슬라이드 수: ${targetLengthStr}`;
+3. 연속된 슬라이드가 같은 레이아웃을 사용하지 않도록 분배
+4. slideTitle은 청중 관심을 끌도록 임팩트 있게
+5. 원고의 핵심 정보, 수치, 사례를 빠짐없이 포함하며, **요구된 장수를 맞추기 위해 슬라이드를 잘게 쪼개세요.**
+6. **(절대 규칙) 제목만 덩그러니 있고 본문 내용이 텅 빈 슬라이드는 어떠한 경우에도 생성해서는 안 됩니다. 모든 슬라이드에는 원고에서 추출한 구체적이고 실질적인 정보(수치, 사례, 상세 설명)가 꽉 차 있어야 합니다.**
+7. bulletPoints 반드시 4~5개, 각 포인트 80~120자로 구체적 수치/사례 포함
+8. bodyText 3~4문장 이상 (300~500자), speakerNotes 4~6문장 이상 (내용을 최대한 풍부하게)
+9. grid_2x2는 contentBlocks 4개, grid_1x3는 3개
+10. 총 슬라이드 수: ${targetLengthStr}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 580000); // 9분 40초로 타임아웃 극대화
 
-    console.log('[generateAllInOne] Gemini API 호출 시작...');
+    console.log(`[generateAllInOne] ${config.provider} API 호출 시작...`);
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': GEMINI_API_KEY!,
-            },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    temperature: 0.7,
-                },
-            }),
+        const rawText = await generateText(config, prompt, {
+            temperature: 0.7,
+            jsonMode: true,
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        console.log(`[generateAllInOne] Gemini API 응답 수신: ${response.status}`);
-
-        if (!response.ok) {
-            const errBody = await response.text().catch(() => '');
-            console.error('[generateAllInOne] API 실패:', response.status, errBody.substring(0, 300));
-            throw new Error(`Gemini API 오류: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const textPart = data.candidates?.[0]?.content?.parts?.find((p: { text?: string }) => p.text);
-        if (!textPart?.text) throw new Error('응답 없음');
+        console.log(`[generateAllInOne] API 응답 수신 (${rawText.length}자)`);
 
         let parsed;
         try {
-            const cleanText = textPart.text.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
+            const cleanText = rawText.replace(/^```json\s*/m, '').replace(/```\s*$/m, '').trim();
             parsed = JSON.parse(cleanText);
         } catch (e) {
-            console.error('[generateAllInOne] JSON parsing failed. length:', textPart.text.length);
+            console.error('[generateAllInOne] JSON parsing failed. length:', rawText.length);
             throw new Error('AI 초안 생성 중 형식이 깨졌습니다 (JSON 파싱 오류). 요청한 목표 장수가 너무 많아 중간에 문장 생성이 끊겼을 가능성이 높습니다. 장수를 약간 줄여서 다시 시도해주세요.');
         }
         const overallTitle = parsed.overallTitle || fileName.replace(/\.[^.]+$/, '');
@@ -315,9 +300,11 @@ cover, title_body, bullet_list, grid_2x2, grid_1x3, content_image, section_divid
 }
 
 export async function POST(request: NextRequest) {
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === 'your-api-key-here') {
+    const config = getAIConfigFromHeaders(request.headers);
+
+    if (!config.apiKey) {
         return NextResponse.json(
-            { error: 'GEMINI_API_KEY가 설정되지 않았습니다.' },
+            { error: 'API 키가 설정되지 않았습니다. 상단 설정에서 API 키를 입력해주세요.' },
             { status: 500 }
         );
     }
@@ -348,7 +335,7 @@ export async function POST(request: NextRequest) {
         // 목표 장수가 20장 이하이고 텍스트가 15000자 이하라면 챕터 분석 없이 한 번에 순차 생성
         if (!forceChunking && (fullText.length <= 15000 || (targetSlideCount && targetSlideCount <= 20))) {
             console.log('[generate-full-draft] 단일 API 호출 모드 (챕터 무관 순차 생성)');
-            const result = await generateAllInOne(fullText, fileName || 'document', template || 'lecture', targetSlideCount);
+            const result = await generateAllInOne(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount);
             console.log(`[generate-full-draft] 완료: "${result.overallTitle}" → ${result.slides.length}장`);
 
             return NextResponse.json({
@@ -365,7 +352,7 @@ export async function POST(request: NextRequest) {
 
         // Phase 1: 구조 분석
         console.log('[generate-full-draft] Phase 1: 구조 분석...');
-        const structure = await analyzeStructure(fullText, fileName || 'document', template || 'lecture', targetSlideCount);
+        const structure = await analyzeStructure(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount);
         console.log(`[generate-full-draft] 구조: "${structure.overallTitle}" → ${structure.chapters.length}개 챕터`);
 
         // Phase 2: 슬라이드 콘텐츠 생성
@@ -411,7 +398,8 @@ export async function POST(request: NextRequest) {
                     chapter.title,
                     chapter.suggestedSlideCount,
                     structure.styleSuggestions,
-                    sectionTemplate
+                    sectionTemplate,
+                    config
                 );
 
                 for (const slide of slides) {

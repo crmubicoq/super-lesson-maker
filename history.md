@@ -1,3 +1,69 @@
+## 📅 2026-03-12
+### [진행 내용]: API 키 입력 UI + 멀티 AI 프로바이더 (Gemini / Claude) 지원
+- **[배경]**: API 키가 `.env.local`에 하드코딩되어 사용자가 UI에서 변경할 수 없었고, 텍스트 분석 작업에 Claude API도 선택적으로 사용하고 싶다는 요구.
+- **[설계 원칙]**:
+  - **이미지 생성** (generate-slide-image, partial-edit, validate-text, analyze-style, extract-pdf-ocr): Gemini 전용 유지
+  - **텍스트 분석** (generate-full-draft, generate-slide-content, analyze-toc, serverSlideUtils): Gemini 또는 Claude 선택 가능
+- **[신규 파일]**:
+  - `src/utils/aiProvider.ts`: 통합 텍스트 생성 추상화 — `generateText()` 함수가 config에 따라 Gemini/Claude API 분기 호출. `getAIConfigFromHeaders()`로 요청 헤더에서 config 추출.
+  - `src/components/SettingsModal.tsx`: 설정 모달 UI — Gemini/Claude 프로바이더 카드 선택, API 키 마스크 입력, Claude 선택 시 이미지용 Gemini 키 추가 입력
+- **[수정 내용]**:
+  - `page.tsx`: aiConfig 상태(localStorage 영속화) + 헤더 설정 버튼 + 모든 API 호출에 `X-AI-Provider`/`X-API-Key`/`X-Gemini-Key` 커스텀 헤더 전달
+  - 텍스트 라우트 3개: 직접 Gemini fetch → `generateText()` 호출로 교체
+  - 이미지 라우트 5개: `X-Gemini-Key` 헤더 fallback 추가 (런타임 키 > 환경변수)
+  - `SlideEditor.tsx`, `slideImageGenerator.ts`: geminiApiKey prop/option 전달
+- **[핵심 원리]**:
+  - Claude API는 네이티브 JSON 모드가 없으므로, jsonMode=true 시 프롬프트에 JSON 출력 지시를 append하는 방식으로 처리
+  - 커스텀 HTTP 헤더(`X-AI-Provider`, `X-API-Key`, `X-Gemini-Key`)로 런타임 설정 전달 — 환경변수 fallback으로 하위 호환 유지
+  - localStorage `slm_ai_config` 키로 설정 영속화
+- **[수정 파일]**: `aiProvider.ts`(신규), `SettingsModal.tsx`(신규), `page.tsx`, `generate-full-draft/route.ts`, `generate-slide-content/route.ts`, `analyze-toc/route.ts`, `serverSlideUtils.ts`, `generate-slide-image/route.ts`, `partial-edit/route.ts`, `validate-text/route.ts`, `analyze-style/route.ts`, `extract-pdf-ocr/route.ts`, `SlideEditor.tsx`, `slideImageGenerator.ts`
+- **[빌드 검증]**: TypeScript 컴파일 및 Next.js 프로덕션 빌드 통과 확인
+
+### [진행 내용]: 참고 슬라이드 이미지 드래그 앤 드롭 업로드
+- **[배경]**: 참고 이미지 업로드 영역이 클릭만 지원했음. 드래그 앤 드롭도 지원하도록 UX 개선.
+- **[수정 내용]**:
+  - `handleRefImageFiles()` 공용 헬퍼 함수로 파일 처리 로직 통합
+  - 빈 상태 + 이미지 그리드 상태 모두 드래그 앤 드롭 지원
+  - 드래그 오버 시 amber 테두리/배경 하이라이트 시각 피드백
+- **[수정 파일]**: `page.tsx`
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: "Pro 모델" 문구 제거
+- **[배경]**: gemini-2.5-flash로 전환 후 UI에 "Pro 모델 연산 중" 등 부정확한 문구 잔존
+- **[수정 내용]**: page.tsx 진행바 레이블/에러 메시지, route.ts 주석에서 "Pro 모델" 문구 삭제/수정
+- **[수정 파일]**: `page.tsx` (2곳), `generate-full-draft/route.ts` (주석 1곳)
+
+### [진행 내용]: 워크플로우 단계 네비게이션 — 이전 단계로 돌아가기
+- **[배경]**: 사용자 피드백 — 슬라이드 편집 중 수정 사항이 생기면 끝까지 진행 후 처음부터 다시 시작해야 하는 불편함.
+- **[수정 내용]**:
+  1. **Sidebar 클릭 이동**: 완료된 단계를 클릭하면 해당 단계로 이동. 완료 단계에 체크마크(✓) 표시, 호버 시 "이동" 텍스트. AI 처리 단계(2: 문서 분석, 5: 렌더링)는 클릭 불가.
+  2. **SlideEditor 뒤로가기 버튼**: "이전 단계" 버튼 추가 → 디자인 옵션 설정(configure_visual)으로 복귀. 기존 데이터(슬라이드, 이미지) 모두 보존.
+  3. **handleStepClick 라우팅**: 사이드바 클릭 시 단계 번호 → Step 타입 매핑. analyzing/generating 중에는 모든 이동 차단.
+- **[수정 파일]**: `Sidebar.tsx` (onStepClick prop, 완료/현재/미래 스타일 분기), `page.tsx` (handleStepClick, Sidebar/SlideEditor prop 전달), `SlideEditor.tsx` (onBack prop, 이전 단계 버튼)
+- **[핵심 원리]**: 뒤로 이동 시 데이터를 보존하되, AI 처리 중(analyzing/generating)에는 이동을 차단하여 안전성 확보. 이미 생성된 이미지는 slides 배열에 남아있으므로 configure_visual로 돌아가도 손실 없음.
+- **[빌드 검증]**: TypeScript 컴파일 및 Next.js 프로덕션 빌드 통과 확인
+
+### [진행 내용]: 초안 생성 모델을 gemini-2.5-pro → gemini-2.5-flash로 전환
+- **[원인]**: gemini-2.5-pro 무료 할당량이 하루 25~50 RPD로 매우 적어, 한 번 초안 생성(22~28회 API 호출)만으로 일일 할당량이 소진됨. API 키를 새로 발급해도 할당량은 프로젝트 단위로 적용되어 동일한 문제 발생.
+- **[수정 내용]**:
+  - `generate-full-draft/route.ts`: MODEL을 `gemini-2.5-flash`로 변경
+  - `serverSlideUtils.ts`: MODEL을 `gemini-2.5-flash`로 변경
+- **[기대 효과]**: gemini-2.5-flash는 하루 1,500 RPD로 약 30~60배 넉넉한 할당량 확보. 2.5-flash는 thinking 모델이라 구조화된 JSON 생성과 논리적 분석에 충분한 품질 제공.
+- **[변경 없음]**: 이미지 생성(`gemini-3-pro-image-preview`), OCR(`gemini-2.5-flash`), 타임아웃/maxDuration 설정, 프롬프트 내용
+- **[핵심 원리]**: Google AI 무료 할당량은 API 키가 아닌 프로젝트 단위. gemini-2.5-pro(25-50 RPD) vs gemini-2.5-flash(1,500 RPD)로 실용성 면에서 flash가 압도적. RPM은 매분 초기화, RPD는 태평양 시간 자정에 초기화.
+- **[빌드 검증]**: TypeScript 컴파일 및 Next.js 프로덕션 빌드 통과 확인
+
+### [진행 내용]: gemini-2.5-flash 전용 프롬프트 최적화
+- **[배경]**: Flash 모델은 Pro보다 간결하게 답변하는 경향이 있어, 슬라이드 내용이 빈약해질 수 있음. 프롬프트를 flash 특성에 맞게 미세 조정.
+- **[수정 내용]**:
+  1. **`analyzeStructure()`** (generate-full-draft/route.ts): "단계별 사고" 지시 추가 → flash의 thinking 기능 활용, JSON 출력 예시 보강
+  2. **`generateAllInOne()`** (generate-full-draft/route.ts): 구체적인 슬라이드 예시 1개 추가, 출력 분량 규칙 강화 (bulletPoints 4~5개/80~120자, bodyText 300~500자, speakerNotes 4~6문장), "간결하게 요약하지 마세요" 강조
+  3. **`extractKeyPoints()`** (serverSlideUtils.ts): 요약 분량 "1000~1500자" → "1500~2000자"로 상향, 수치/고유명사 보존 강조
+  4. **`buildBatchPrompt()`** (serverSlideUtils.ts): 좋은 슬라이드 예시 추가, 분량 규칙 전면 강화 (bulletPoints 4~5개, bodyText 300~500자, speakerNotes 4~6문장, contentBlocks body 2~3문장)
+  5. **`generate-slide-content/route.ts`**: MODEL을 `gemini-2.0-flash` → `gemini-2.5-flash`로 통일
+- **[핵심 원리]**: Flash 모델은 구체적 예시(few-shot)와 출력 분량 명시에 잘 반응함. "간결하게 요약하지 마세요"라는 역방향 지시가 효과적. 단계별 사고(step-by-step) 지시는 flash의 thinking 토큰을 활성화하여 분석 품질 향상.
+- **[빌드 검증]**: TypeScript 컴파일 및 Next.js 프로덕션 빌드 통과 확인
+
 ## 📅 2026-03-10
 ### [진행 내용]: 타임아웃 오류 체계적 해결 — 서버/클라이언트 양방향 안정성 확보
 - **[증상]**: PDF 업로드 후 "분석 시작" 시 반복적으로 "signal timed out" 에러 발생. gemini-2.5-pro 모델 전환 + 강화된 프롬프트로 인해 응답 시간이 대폭 증가.

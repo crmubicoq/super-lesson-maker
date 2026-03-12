@@ -22,12 +22,14 @@ interface SlideEditorProps {
     slides: Slide[];
     onUpdateSlide: (updatedSlide: Slide) => void;
     onNextStep?: () => void;
+    onBack?: () => void;
     onAddSlide?: (afterIndex: number) => void;
     onDeleteSlide?: (index: number) => void;
     styleReferenceImages?: string[];
+    geminiApiKey?: string;
 }
 
-export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onAddSlide, onDeleteSlide, styleReferenceImages }: SlideEditorProps) {
+export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack, onAddSlide, onDeleteSlide, styleReferenceImages, geminiApiKey }: SlideEditorProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const currentSlide = slides[currentIndex];
     const slideRef = useRef<HTMLDivElement>(null);
@@ -96,7 +98,10 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onAddSl
 
             const res = await fetch('/api/partial-edit', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(geminiApiKey && { 'X-Gemini-Key': geminiApiKey }),
+                },
                 body: JSON.stringify({
                     existingImageUrl: currentSlide.generatedImageUrl || '',
                     instruction: editInstruction.trim(),
@@ -146,7 +151,10 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onAddSl
 
             const res = await fetch('/api/generate-slide-image', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(geminiApiKey && { 'X-Gemini-Key': geminiApiKey }),
+                },
                 body: JSON.stringify({
                     slideTitle: currentSlide.slideTitle,
                     bodyText: currentSlide.bodyText,
@@ -300,6 +308,15 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onAddSl
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {onBack && (
+                        <button
+                            onClick={onBack}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 text-slate-400 text-xs font-bold transition-all"
+                        >
+                            <ChevronLeft size={14} />
+                            이전 단계
+                        </button>
+                    )}
                     <button
                         onClick={saveAllSlides}
                         disabled={isSaving}
