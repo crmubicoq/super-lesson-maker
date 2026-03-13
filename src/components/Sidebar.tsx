@@ -32,7 +32,7 @@ interface SidebarProps {
 
 export default function Sidebar({ currentStep, onStepClick }: SidebarProps) {
   return (
-    <aside className="w-64 bg-[#0F172A] glass h-screen border-r border-white/10 flex flex-col z-20 relative">
+    <aside className="w-64 bg-[#1E293B] glass h-screen border-r border-white/15 flex flex-col z-20 relative">
       <div className="p-6">
         <div className="flex items-center gap-3 mb-10">
           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -60,7 +60,7 @@ export default function Sidebar({ currentStep, onStepClick }: SidebarProps) {
                       : isCompleted
                         ? 'text-slate-500'
                         : isFuture
-                          ? 'text-slate-600 opacity-50'
+                          ? 'text-slate-500 opacity-50'
                           : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                 }`}
               >

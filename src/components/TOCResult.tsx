@@ -72,9 +72,9 @@ export default function TOCResult({ items, onConfirm, onUpdateItems, onReAnalyze
                 {items.map((item, index) => (
                     <div
                         key={item.id}
-                        className="flex items-center gap-4 p-4 rounded-2xl glass-card group hover:bg-white/10 transition-all border-white/5"
+                        className="flex items-center gap-4 p-4 rounded-2xl glass-card group hover:bg-white/10 transition-all border-white/10"
                     >
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 border border-white/10">
+                        <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400 border border-white/15">
                             {index + 1}
                         </div>
                         <div className="flex-1">
@@ -84,7 +84,7 @@ export default function TOCResult({ items, onConfirm, onUpdateItems, onReAnalyze
                                         autoFocus
                                         value={editTitle}
                                         onChange={(e) => setEditTitle(e.target.value)}
-                                        className="w-full bg-black/40 border border-blue-500/50 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500/50"
+                                        className="w-full bg-slate-700/60 border border-blue-500/50 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500/50"
                                         onKeyDown={(e) => e.key === 'Enter' && saveEdit(item.id)}
                                     />
                                     <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export default function TOCResult({ items, onConfirm, onUpdateItems, onReAnalyze
                                         <input
                                             value={editRange}
                                             onChange={(e) => setEditRange(e.target.value)}
-                                            className="w-24 bg-black/40 border border-white/10 rounded-lg px-2 py-0.5 text-xs text-slate-300 outline-none"
+                                            className="w-24 bg-slate-700/60 border border-white/15 rounded-lg px-2 py-0.5 text-xs text-slate-300 outline-none"
                                             onKeyDown={(e) => e.key === 'Enter' && saveEdit(item.id)}
                                         />
                                     </div>
@@ -146,7 +146,7 @@ export default function TOCResult({ items, onConfirm, onUpdateItems, onReAnalyze
             <div className="flex items-center justify-center gap-6">
                 <button
                     onClick={onReAnalyze}
-                    className="px-8 py-4 rounded-2xl border border-white/10 text-slate-400 font-bold hover:bg-white/5 transition-all"
+                    className="px-8 py-4 rounded-2xl border border-white/15 text-slate-400 font-bold hover:bg-white/5 transition-all"
                 >
                     다시 분석하기
                 </button>

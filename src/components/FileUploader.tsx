@@ -48,7 +48,7 @@ export default function FileUploader({ onFilesSelected }: FileUploaderProps) {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
 
-                <div className="w-full aspect-video rounded-[2rem] border-2 border-dashed relative border-slate-700 bg-slate-900/50 hover:border-blue-500 group transition-all duration-500 flex items-center justify-center overflow-hidden">
+                <div className="w-full aspect-video rounded-[2rem] border-2 border-dashed relative border-slate-600 bg-slate-800/50 hover:border-blue-500 group transition-all duration-500 flex items-center justify-center overflow-hidden">
                     <div className="absolute inset-0 bg-blue-600/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem]" />
 
                     <div className="flex flex-col items-center text-center p-12">

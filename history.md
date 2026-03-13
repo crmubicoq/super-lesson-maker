@@ -1,3 +1,44 @@
+## 📅 2026-03-13
+### [진행 내용]: 소프트 다크 모드 테마 변경
+- **[배경]**: 전체 UI 색상이 너무 어두워(`#0F172A`) 눈에 피로감을 줌. 다크 톤은 유지하되 2~3톤 밝게 조정 요청.
+- **[핵심 변경]**:
+  - 메인 배경: `#0F172A` → `#1E293B` (Tailwind slate-800)
+  - 모달/카드: `#1E293B` → `#334155` (Tailwind slate-700)
+  - 에디터 프리뷰: `#0d121f` → `#1E293B`
+  - 탑바/패널: `bg-black/*` → `bg-slate-800/*`
+  - glass 효과: rgba 밝게 + 보더 opacity 증가
+  - 전체 보더: `/5` → `/10`, `/10` → `/15`
+  - 텍스트: `text-slate-600` → `text-slate-500` (대비 개선)
+- **[수정 파일]**: globals.css, page.tsx, Sidebar.tsx, SlideEditor.tsx, SettingsModal.tsx, ProjectLoader.tsx, SlideContentPreview.tsx, TOCResult.tsx, FileUploader.tsx, PipelineProgress.tsx (총 10개)
+- **[주의]**: slide-templates/ 폴더(실제 슬라이드 렌더링)는 미변경
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: 내보내기 PNG 개별 저장 추가
+- **[배경]**: 기존 내보내기(export)에서 PDF + PPTX만 저장되었는데, 개별 슬라이드 PNG 파일도 함께 저장하고 싶다는 요구.
+- **[변경]**:
+  - `page.tsx` export 단계: 각 슬라이드 base64 데이터를 Blob으로 변환 → `slides/slide_01.png`, `slide_02.png` ... 형식으로 저장
+  - File System Access API의 `getDirectoryHandle('slides', { create: true })`로 하위 폴더 자동 생성
+  - 다운로드 버튼 텍스트 변경: "PDF 다운로드 (16:9)" → "다운로드 (PDF + PPTX + PNG)"
+  - 저장 완료 알림에 "개별 PNG(slides 폴더)" 안내 추가
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: 슬라이드 이미지 불러오기 + 프로젝트 저장/불러오기
+- **[배경]**: 완성된 슬라이드 이미지를 다시 불러와서 수정하고 싶다는 요구. 또한 앱에서 만든 프로젝트를 저장/복원하는 기능도 필요.
+- **[기능 A — 외부 이미지 불러오기]**:
+  - upload 단계에 "슬라이드 이미지 불러오기" 버튼 추가
+  - 이미지 파일 선택 → `/api/upload-slide-images` (sharp 1920x1080 리사이즈 후 `public/generated/slides/`에 저장) → Slide 객체 생성 → SlideEditor(draft 단계)로 직행
+  - 기존 partial-edit 기능으로 AI 수정 가능
+- **[기능 B — 프로젝트 저장/불러오기]**:
+  - 저장: `outputs/[제목]/project.json`에 슬라이드 메타데이터 저장 (base64 제외, 이미지는 URL 경로만 저장)
+  - 이미지 생성 완료 시 자동 저장 + SlideEditor에 "프로젝트 저장" 수동 버튼
+  - 불러오기: `/api/list-projects`로 목록 스캔 → ProjectLoader 모달 → `/api/load-project`로 데이터 복원 → draft 단계로 직행
+- **[핵심 원리]**:
+  - 이미지 파일은 이미 `public/generated/slides/`에 PNG로 존재하므로, project.json에는 경로(`generatedImageUrl`)만 기록하여 용량 절감 (~50KB)
+  - 별도 편집 페이지 없이 기존 SlideEditor의 partial-edit을 그대로 활용
+- **[신규 파일]**: `upload-slide-images/route.ts`, `save-project/route.ts`, `list-projects/route.ts`, `load-project/route.ts`, `ProjectLoader.tsx`
+- **[수정 파일]**: `slide.ts` (SavedProject 타입), `page.tsx` (핸들러+UI), `SlideEditor.tsx` (저장 버튼)
+- **[빌드 검증]**: TypeScript 컴파일 및 Next.js 프로덕션 빌드 통과 확인
+
 ## 📅 2026-03-12
 ### [진행 내용]: API 키 입력 UI + 멀티 AI 프로바이더 (Gemini / Claude) 지원
 - **[배경]**: API 키가 `.env.local`에 하드코딩되어 사용자가 UI에서 변경할 수 없었고, 텍스트 분석 작업에 Claude API도 선택적으로 사용하고 싶다는 요구.

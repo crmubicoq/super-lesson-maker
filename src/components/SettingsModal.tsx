@@ -36,12 +36,12 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
 
     return (
         <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
             onClick={handleOverlayClick}
         >
-            <div className="w-full max-w-lg bg-[#1E293B] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="w-full max-w-lg bg-[#334155] border border-white/15 rounded-2xl shadow-2xl overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <h2 className="text-lg font-bold text-white">AI 설정</h2>
                     <button
                         onClick={onClose}
@@ -62,7 +62,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                                     localConfig.provider === 'gemini'
                                         ? 'border-blue-500 bg-blue-500/10'
-                                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                                        : 'border-white/15 hover:border-white/20 bg-white/5'
                                 }`}
                             >
                                 <span className="text-2xl">✦</span>
@@ -74,7 +74,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                                     localConfig.provider === 'claude'
                                         ? 'border-amber-500 bg-amber-500/10'
-                                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                                        : 'border-white/15 hover:border-white/20 bg-white/5'
                                 }`}
                             >
                                 <span className="text-2xl">◈</span>
@@ -98,7 +98,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                 value={localConfig.apiKey}
                                 onChange={(e) => setLocalConfig(prev => ({ ...prev, apiKey: e.target.value }))}
                                 placeholder={localConfig.provider === 'gemini' ? 'AIzaSy...' : 'sk-ant-...'}
-                                className="w-full px-4 py-3 pr-20 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-slate-600 focus:border-blue-500/50 outline-none transition-all"
+                                className="w-full px-4 py-3 pr-20 bg-slate-800/60 border border-white/15 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500/50 outline-none transition-all"
                             />
                             <button
                                 onClick={() => setShowApiKey(!showApiKey)}
@@ -132,7 +132,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                     value={localConfig.geminiApiKey}
                                     onChange={(e) => setLocalConfig(prev => ({ ...prev, geminiApiKey: e.target.value }))}
                                     placeholder="AIzaSy... (비워두면 서버 환경변수 사용)"
-                                    className="w-full px-4 py-3 pr-20 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-slate-600 focus:border-blue-500/50 outline-none transition-all"
+                                    className="w-full px-4 py-3 pr-20 bg-slate-800/60 border border-white/15 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500/50 outline-none transition-all"
                                 />
                                 <button
                                     onClick={() => setShowGeminiKey(!showGeminiKey)}
@@ -149,7 +149,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5">
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10">
                     <button
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all"

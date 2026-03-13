@@ -16,6 +16,7 @@ import {
     Wand2,
     Send,
     X,
+    Save,
 } from 'lucide-react';
 
 interface SlideEditorProps {
@@ -27,9 +28,11 @@ interface SlideEditorProps {
     onDeleteSlide?: (index: number) => void;
     styleReferenceImages?: string[];
     geminiApiKey?: string;
+    onSaveProject?: () => void;
+    saveMessage?: string | null;
 }
 
-export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack, onAddSlide, onDeleteSlide, styleReferenceImages, geminiApiKey }: SlideEditorProps) {
+export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack, onAddSlide, onDeleteSlide, styleReferenceImages, geminiApiKey, onSaveProject, saveMessage }: SlideEditorProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const currentSlide = slides[currentIndex];
     const slideRef = useRef<HTMLDivElement>(null);
@@ -256,9 +259,9 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-[#0F172A] overflow-hidden">
+        <div className="flex-1 flex flex-col h-full bg-[#1E293B] overflow-hidden">
             {/* Editor Header */}
-            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/10">
+            <div className="flex items-center justify-between p-4 border-b border-white/15 bg-slate-800/30">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
@@ -311,16 +314,30 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                     {onBack && (
                         <button
                             onClick={onBack}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 text-slate-400 text-xs font-bold transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 hover:bg-white/5 text-slate-400 text-xs font-bold transition-all"
                         >
                             <ChevronLeft size={14} />
                             이전 단계
                         </button>
                     )}
+                    {onSaveProject && (
+                        <button
+                            onClick={onSaveProject}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition-all"
+                        >
+                            <Save size={14} />
+                            프로젝트 저장
+                        </button>
+                    )}
+                    {saveMessage && (
+                        <span className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold animate-in fade-in duration-300">
+                            {saveMessage}
+                        </span>
+                    )}
                     <button
                         onClick={saveAllSlides}
                         disabled={isSaving}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all disabled:opacity-50"
                     >
                         <Download size={14} />
                         슬라이드 저장
@@ -338,28 +355,28 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Side: Unified Text Editor + Partial Edit */}
-                <div className="w-[400px] border-r border-white/5 flex flex-col bg-black/40">
+                <div className="w-[400px] border-r border-white/10 flex flex-col bg-slate-800/60">
                     {/* 슬라이드 텍스트 편집 */}
                     <div className="flex-1 flex flex-col p-6 min-h-0">
                         <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
                             <div className="flex items-center gap-2">
                                 <Pencil size={14} className="text-blue-400" />
-                                원본 슬라이드 대본 <span className="text-[10px] text-slate-600 normal-case">(목차 초안)</span>
+                                원본 슬라이드 대본 <span className="text-[10px] text-slate-500 normal-case">(목차 초안)</span>
                             </div>
                         </label>
-                        <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/5">
+                        <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/10">
                             💡 여기에 적힌 내용이 앞 단계에서 확정한 '슬라이드 내용'입니다. 오른쪽 이미지가 이를 정확히 반영했는지 비교해 보세요.
                         </p>
                         <textarea
                             value={localText}
                             onChange={(e) => handleCombinedTextChange(e.target.value)}
-                            className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all resize-none leading-relaxed"
+                            className="flex-1 w-full bg-white/5 border border-white/15 rounded-xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all resize-none leading-relaxed"
                             placeholder="슬라이드에 표시할 텍스트를 입력하세요.&#10;첫 줄이 제목이 됩니다."
                         />
                     </div>
 
                     {/* Partial Edit: 수정 지시 영역 */}
-                    <div className="border-t border-white/5 p-6">
+                    <div className="border-t border-white/10 p-6">
                         {editMode ? (
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
@@ -380,7 +397,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                     disabled={isEditing}
                                     rows={3}
                                     placeholder="예) 제목을 '새 제목'으로 변경, 배경색을 파란색으로 변경"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none disabled:opacity-50"
+                                    className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none disabled:opacity-50"
                                 />
                                 <button
                                     onClick={handlePartialEdit}
@@ -399,7 +416,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                             <button
                                 onClick={() => setEditMode(true)}
                                 disabled={isRegenerating || isEditing}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all disabled:opacity-50"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all disabled:opacity-50"
                             >
                                 <Wand2 size={14} />
                                 AI 수정 지시
@@ -409,9 +426,9 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 </div>
 
                 {/* Right Side: Preview */}
-                <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-start bg-[#0d121f] relative overflow-y-auto">
+                <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-start bg-[#1E293B] relative overflow-y-auto">
                     {isSaving && (
-                        <div className="absolute inset-0 bg-[#0d121f] flex flex-col items-center justify-center z-20">
+                        <div className="absolute inset-0 bg-[#1E293B] flex flex-col items-center justify-center z-20">
                             <div className="w-14 h-14 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-6" />
                             <p className="text-white text-sm font-bold mb-2">슬라이드 저장 중...</p>
                             <p className="text-blue-400 text-xs font-bold mb-4">
@@ -436,7 +453,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                     className="w-full h-full object-fill"
                                 />
                                 {isRegenerating && (
-                                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
                                         <Loader2 size={32} className="text-blue-400 animate-spin mb-3" />
                                         <span className="text-sm text-white font-bold">이미지 재생성 중...</span>
                                     </div>

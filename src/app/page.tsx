@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import FileUploader from '@/components/FileUploader';
-import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2, Settings } from 'lucide-react';
+import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2, Settings, FolderOpen, ImagePlus, Save } from 'lucide-react';
 import SettingsModal, { AIConfigState } from '@/components/SettingsModal';
+import ProjectLoader from '@/components/ProjectLoader';
 import { PdfProcessor } from '@/utils/pdfProcessor';
 import { TextProcessor } from '@/utils/textProcessor';
 import { SlideImageGenerator } from '@/utils/slideImageGenerator';
@@ -39,7 +40,7 @@ function AnalyzingProgress() {
         <span className="text-xs font-bold text-blue-400">명품 초안 설계 진행률</span>
         <span className="text-xs font-bold text-slate-300">{Math.floor(progress)}%</span>
       </div>
-      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5 relative">
+      <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden border border-white/10 relative">
         <div
           className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500 transition-all duration-1000 ease-linear"
           style={{ width: `${progress}%` }}
@@ -86,6 +87,10 @@ export default function Home() {
   const [aiConfig, setAiConfig] = useState<AIConfigState>({ provider: 'gemini', apiKey: '', geminiApiKey: '' });
   const [showSettings, setShowSettings] = useState(false);
 
+  // 프로젝트 저장/불러오기
+  const [showProjectLoader, setShowProjectLoader] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
   // localStorage에서 AI 설정 복원
   useEffect(() => {
     try {
@@ -97,6 +102,113 @@ export default function Home() {
   const handleSaveAiConfig = (config: AIConfigState) => {
     setAiConfig(config);
     localStorage.setItem('slm_ai_config', JSON.stringify(config));
+  };
+
+  // 프로젝트 저장
+  const handleSaveProject = async () => {
+    if (slides.length === 0 || !overallTitle) return;
+    try {
+      const res = await fetch('/api/save-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overallTitle, userStyle, slideTemplate, slides }),
+      });
+      if (!res.ok) throw new Error('저장 실패');
+      const result = await res.json();
+      console.log('[Project Saved]', result.savedAt);
+      setSaveMessage('프로젝트가 저장되었습니다');
+      setTimeout(() => setSaveMessage(null), 2500);
+    } catch (e: unknown) {
+      console.error('[Save Project Error]', e);
+      setSaveMessage('저장 실패');
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
+  };
+
+  // 프로젝트 불러오기
+  const handleLoadProject = async (folderName: string) => {
+    try {
+      const res = await fetch(`/api/load-project?folder=${encodeURIComponent(folderName)}`);
+      if (!res.ok) throw new Error('프로젝트를 불러올 수 없습니다.');
+      const { project } = await res.json();
+      setOverallTitle(project.overallTitle || '');
+      setUserStyle(project.userStyle || '');
+      setSlideTemplate(project.slideTemplate || 'lecture');
+      setSlides(project.slides || []);
+      setStyleReferenceImages([]);
+      setFiles([]);
+      setStep('draft');
+      setShowProjectLoader(false);
+    } catch (e: unknown) {
+      alert(`프로젝트 로드 실패: ${e instanceof Error ? e.message : '알 수 없는 오류'}`);
+    }
+  };
+
+  // 외부 슬라이드 이미지 불러오기 (이미지 파일 + PDF 지원)
+  const [isLoadingSlideImages, setIsLoadingSlideImages] = useState(false);
+
+  const handleLoadSlideImages = async (selectedFiles: File[]) => {
+    if (selectedFiles.length === 0) return;
+    setIsLoadingSlideImages(true);
+
+    try {
+      const formData = new FormData();
+      let pdfFileName = '';
+
+      for (const file of selectedFiles) {
+        if (file.type === 'application/pdf') {
+          // PDF → 각 페이지를 이미지로 변환
+          pdfFileName = file.name.replace('.pdf', '');
+          const pdfjs = await import('pdfjs-dist');
+          pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 }); // 고해상도
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext('2d')!;
+            await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+
+            // canvas → Blob → File
+            const blob = await new Promise<Blob>((resolve) =>
+              canvas.toBlob((b) => resolve(b!), 'image/png')
+            );
+            const pageFile = new File([blob], `page-${pageNum}.png`, { type: 'image/png' });
+            formData.append('images', pageFile);
+          }
+        } else if (file.type.startsWith('image/')) {
+          formData.append('images', file);
+        }
+      }
+
+      const res = await fetch('/api/upload-slide-images', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('이미지 업로드 실패');
+      const { images } = await res.json();
+      const newSlides: Slide[] = images.map((img: { url: string; filename: string }, i: number) => ({
+        id: `slide-uploaded-${Date.now()}-${i}`,
+        chapterId: 'uploaded',
+        chapterTitle: '업로드된 슬라이드',
+        slideTitle: `슬라이드 ${i + 1}`,
+        content: [],
+        bodyText: '',
+        layout: 'title_body' as const,
+        designStyle: '',
+        speakerNotes: '',
+        slideRole: 'content' as const,
+        generatedImageUrl: img.url,
+      }));
+      setSlides(newSlides);
+      setOverallTitle(pdfFileName || '업로드된 슬라이드');
+      setStep('draft');
+    } catch (e: unknown) {
+      alert(`이미지 불러오기 실패: ${e instanceof Error ? e.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsLoadingSlideImages(false);
+    }
   };
 
   // 파일 선택 (분석은 아직 시작하지 않음)
@@ -313,6 +425,18 @@ export default function Home() {
       const updatedSlides = await generator.generateImagesForSlides([...slides]);
       setSlides(updatedSlides);
       setStep('draft');
+
+      // 자동 저장
+      if (overallTitle) {
+        fetch('/api/save-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            overallTitle, userStyle, slideTemplate,
+            slides: updatedSlides.map(({ generatedImageBase64, finalCapturedBase64, ...rest }) => rest),
+          }),
+        }).catch(err => console.warn('[Auto-save failed]', err));
+      }
     } catch (e: any) {
       console.error('[Generation Error]', e);
       let errorMessage = "슬라이드 생성 중 알 수 없는 오류가 발생했습니다.";
@@ -405,12 +529,12 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0F172A] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden">
+    <div className="flex h-screen bg-[#1E293B] text-slate-200 font-sans selection:bg-blue-500/30 overflow-hidden">
       <Sidebar currentStep={getWorkflowStep()} onStepClick={handleStepClick} />
 
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* TOP BAR */}
-        <div className="h-16 border-b border-white/5 bg-black/40 backdrop-blur-xl flex items-center justify-between px-8 z-50 flex-none">
+        <div className="h-16 border-b border-white/15 bg-slate-800/60 backdrop-blur-xl flex items-center justify-between px-8 z-50 flex-none">
           <div className="flex items-center gap-3">
             <div className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 tracking-wider uppercase">
               Project: {files.length > 0 ? (files.length === 1 ? files[0].name.split('.')[0] : `${files[0].name.split('.')[0]} 외 ${files.length - 1}개`) : 'New Lesson Project'}
@@ -439,6 +563,13 @@ export default function Home() {
           onClose={() => setShowSettings(false)}
           config={aiConfig}
           onSave={handleSaveAiConfig}
+        />
+
+        {/* Project Loader Modal */}
+        <ProjectLoader
+          isOpen={showProjectLoader}
+          onClose={() => setShowProjectLoader(false)}
+          onLoadProject={handleLoadProject}
         />
 
         {/* CONTENT BODY */}
@@ -484,6 +615,8 @@ export default function Home() {
               }}
               styleReferenceImages={styleReferenceImages}
               geminiApiKey={aiConfig.geminiApiKey || (aiConfig.provider === 'gemini' ? aiConfig.apiKey : '')}
+              onSaveProject={handleSaveProject}
+              saveMessage={saveMessage}
             />
           ) : (
             <div ref={mainContentRef} className="flex-1 overflow-y-auto custom-scrollbar z-10">
@@ -508,9 +641,40 @@ export default function Home() {
                     <div className="flex-1 flex flex-col items-center justify-center py-6 w-full">
                       <FileUploader onFilesSelected={handleFilesSelected} />
 
+                      {/* 불러오기 옵션 */}
+                      <div className="mt-6 w-full max-w-2xl">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="flex-1 h-[1px] bg-white/10" />
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">또는</span>
+                          <div className="flex-1 h-[1px] bg-white/10" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className={`flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-white/15 text-slate-400 hover:text-white hover:bg-white/5 hover:border-blue-500/30 transition-all cursor-pointer ${isLoadingSlideImages ? 'opacity-50 pointer-events-none' : ''}`}>
+                            {isLoadingSlideImages ? <Loader2 size={22} className="animate-spin text-blue-400" /> : <ImagePlus size={22} />}
+                            <span className="text-sm font-bold">{isLoadingSlideImages ? 'PDF 페이지 변환 중...' : '슬라이드 이미지 불러오기'}</span>
+                            <span className="text-[10px] text-slate-500">PNG, JPG, PDF 지원</span>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,application/pdf"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => handleLoadSlideImages(Array.from(e.target.files || []))}
+                            />
+                          </label>
+                          <button
+                            onClick={() => setShowProjectLoader(true)}
+                            className="flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-white/15 text-slate-400 hover:text-white hover:bg-white/5 hover:border-blue-500/30 transition-all"
+                          >
+                            <FolderOpen size={22} />
+                            <span className="text-sm font-bold">기존 프로젝트 불러오기</span>
+                            <span className="text-[10px] text-slate-500">이전 작업 이어서 편집</span>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* 선택된 파일 표시 */}
                       {files.length > 0 && (
-                        <div className="mt-6 w-full max-w-2xl p-4 rounded-xl bg-white/5 border border-white/10">
+                        <div className="mt-6 w-full max-w-2xl p-4 rounded-xl bg-white/5 border border-white/15">
                           <div className="flex items-center gap-2 mb-3">
                             <FileText size={14} className="text-blue-400" />
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">선택된 파일 ({files.length}개)</span>
@@ -545,7 +709,7 @@ export default function Home() {
                                 onClick={() => setSlideTemplate(t.id)}
                                 className={`p-4 rounded-xl border text-left transition-all ${slideTemplate === t.id
                                   ? 'border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
-                                  : 'border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/5'
+                                  : 'border-white/15 bg-slate-800/40 hover:border-white/20 hover:bg-white/5'
                                   }`}
                               >
                                 <p className={`text-sm font-bold mb-1 ${slideTemplate === t.id ? 'text-emerald-400' : 'text-white'}`}>{t.name}</p>
@@ -623,7 +787,7 @@ export default function Home() {
                           <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400"><BookOpen size={20} /></div>
                           <h3 className="text-lg font-bold text-white">슬라이드 구성</h3>
                         </div>
-                        <div className="flex items-center gap-4 p-4 rounded-xl bg-black/20 border border-white/5">
+                        <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-800/40 border border-white/10">
                           <div className="flex-1">
                             <p className="text-sm font-bold text-white">{overallTitle || '강의 교안'}</p>
                             <p className="text-[10px] text-slate-500 mt-1">총 {slides.length}장의 슬라이드가 이미지로 생성됩니다.</p>
@@ -636,7 +800,7 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-600 mt-3 text-center">
+                      <p className="text-[10px] text-slate-500 mt-3 text-center">
                         슬라이드의 구체적인 추가 및 삭제는 다음 '개별 슬라이드 수정' 단계에서 진행할 수 있습니다.
                       </p>
 
@@ -648,7 +812,7 @@ export default function Home() {
                         </div>
                         <textarea
                           placeholder="예: '전체적으로 미니멀하면서 파란색 포인트가 들어간 디자인으로 해줘'"
-                          className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-4 text-sm focus:border-violet-500/50 outline-none transition-all resize-none"
+                          className="w-full h-32 bg-slate-800/60 border border-white/15 rounded-xl p-4 text-sm focus:border-violet-500/50 outline-none transition-all resize-none"
                           value={userStyle}
                           onChange={(e) => setUserStyle(e.target.value)}
                         />
@@ -671,7 +835,7 @@ export default function Home() {
                             <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-xl p-2 transition-all ${isRefDragOver ? 'ring-2 ring-amber-400 bg-amber-500/10' : ''}`}>
                               {styleReferenceImages.map((img, idx) => (
                                 <div key={idx} className="relative group aspect-video">
-                                  <img src={img} alt={`스타일 참고 ${idx + 1}`} className="w-full h-full object-cover rounded-lg border border-white/10" />
+                                  <img src={img} alt={`스타일 참고 ${idx + 1}`} className="w-full h-full object-cover rounded-lg border border-white/15" />
                                   <button
                                     onClick={() => setStyleReferenceImages(prev => prev.filter((_, i) => i !== idx))}
                                     className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all font-bold text-xs"
@@ -681,7 +845,7 @@ export default function Home() {
                                 </div>
                               ))}
                               {styleReferenceImages.length < 5 && (
-                                <label className="flex flex-col items-center justify-center w-full h-full aspect-video border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all relative">
+                                <label className="flex flex-col items-center justify-center w-full h-full aspect-video border-2 border-dashed border-white/15 rounded-lg cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all relative">
                                   <Plus size={20} className="text-slate-500 mb-1" />
                                   <span className="text-[10px] text-slate-500">추가 업로드</span>
                                   <input
@@ -698,7 +862,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <label
-                            className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isRefDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-white/10 hover:border-amber-500/40 hover:bg-amber-500/5'}`}
+                            className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all ${isRefDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-white/15 hover:border-amber-500/40 hover:bg-amber-500/5'}`}
                             onDrop={handleRefDrop}
                             onDragOver={handleRefDragOver}
                             onDragLeave={handleRefDragLeave}
@@ -722,7 +886,7 @@ export default function Home() {
                       <div className="flex justify-center gap-4 pt-4 pb-8">
                         <button
                           onClick={() => setStep('draft_preview')}
-                          className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/10 text-slate-400 font-bold hover:bg-white/5 transition-all"
+                          className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/15 text-slate-400 font-bold hover:bg-white/5 transition-all"
                         >
                           <ArrowLeft size={18} />
                           초안으로 돌아가기
@@ -760,7 +924,7 @@ export default function Home() {
                       <div className="flex gap-4">
                         <button
                           onClick={() => setStep('draft')}
-                          className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/10 text-slate-400 font-bold hover:bg-white/5 transition-all"
+                          className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/15 text-slate-400 font-bold hover:bg-white/5 transition-all"
                         >
                           <ArrowLeft size={18} />
                           이전 단계로 돌아가기
@@ -794,6 +958,8 @@ export default function Home() {
                               pptx.layout = 'LAYOUT_16x9'; // 16:9 비율 설정 (가로 약 10인치 x 세로 약 5.625인치)
 
                               let addedFirst = false;
+                              const pngBlobs: { index: number; blob: Blob }[] = [];
+
                               for (let i = 0; i < slides.length; i++) {
                                 const slide = slides[i];
                                 // AI 엔진이 직접 생성한 원본(generatedImageBase64)이 없으면, UI 캡처본(finalCapturedBase64)으로 대체
@@ -809,6 +975,16 @@ export default function Home() {
                                   const pptxDataUrl = base64Data.startsWith('data:') ? base64Data.split('base64,')[1] : base64Data;
                                   const slidePptx = pptx.addSlide();
                                   slidePptx.background = { data: pptxDataUrl };
+
+                                  // 3. PNG Blob 준비
+                                  const raw = base64Data.startsWith('data:') ? base64Data.split('base64,')[1] : base64Data;
+                                  const byteString = atob(raw);
+                                  const ab = new ArrayBuffer(byteString.length);
+                                  const ia = new Uint8Array(ab);
+                                  for (let j = 0; j < byteString.length; j++) {
+                                    ia[j] = byteString.charCodeAt(j);
+                                  }
+                                  pngBlobs.push({ index: i + 1, blob: new Blob([ab], { type: 'image/png' }) });
 
                                   addedFirst = true;
 
@@ -840,7 +1016,17 @@ export default function Home() {
                                 await pptxWritable.write(pptxBlob);
                                 await pptxWritable.close();
 
-                                alert(`성공적으로 저장되었습니다!\n저장 위치: 선택하신 폴더의 [${folderName}] 안`);
+                                // 3. 개별 PNG 슬라이드 이미지 저장
+                                const slidesFolder = await folderHandle.getDirectoryHandle('slides', { create: true });
+                                for (const { index, blob } of pngBlobs) {
+                                  const pngName = `slide_${String(index).padStart(2, '0')}.png`;
+                                  const pngFileHandle = await slidesFolder.getFileHandle(pngName, { create: true });
+                                  const pngWritable = await pngFileHandle.createWritable();
+                                  await pngWritable.write(blob);
+                                  await pngWritable.close();
+                                }
+
+                                alert(`성공적으로 저장되었습니다!\n저장 위치: 선택하신 폴더의 [${folderName}] 안\n\nPDF, PPTX, 개별 PNG(slides 폴더) 파일이 저장되었습니다.`);
                               } else {
                                 alert('생성된 슬라이드 이미지가 없습니다.');
                               }
@@ -858,7 +1044,7 @@ export default function Home() {
                           disabled={isDownloading}
                           className="px-10 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50"
                         >
-                          {isDownloading ? 'PDF 생성 중...' : 'PDF 다운로드 (16:9)'}
+                          {isDownloading ? '파일 생성 중...' : '다운로드 (PDF + PPTX + PNG)'}
                         </button>
                         <button onClick={() => setStep('publish')} className="px-10 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95 group">
                           최종 완료 <ArrowRight size={20} className="inline ml-2 group-hover:translate-x-1 transition-transform" />
@@ -879,7 +1065,7 @@ export default function Home() {
                         setFiles([]);
                         setSlides([]);
                         setOverallTitle('');
-                      }} className="px-10 py-4 rounded-2xl border border-white/10 text-white font-bold hover:bg-white/5 transition-all active:scale-95">
+                      }} className="px-10 py-4 rounded-2xl border border-white/15 text-white font-bold hover:bg-white/5 transition-all active:scale-95">
                         새로운 교안 만들기
                       </button>
                     </div>
@@ -897,7 +1083,7 @@ export default function Home() {
 function FeatureCard({ icon, title, desc, color }: { icon: React.ReactNode, title: string, desc: string, color: 'blue' | 'purple' | 'emerald' }) {
   const colors = { blue: "bg-blue-500/20 text-blue-400", purple: "bg-purple-500/20 text-purple-400", emerald: "bg-emerald-500/20 text-emerald-400" };
   return (
-    <div className="p-6 rounded-2xl glass-card border-white/5 hover:border-white/10 transition-all hover:-translate-y-1">
+    <div className="p-6 rounded-2xl glass-card border-white/10 hover:border-white/15 transition-all hover:-translate-y-1">
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${colors[color]}`}>{icon}</div>
       <h3 className="font-bold text-lg mb-2 text-white">{title}</h3>
       <p className="text-sm text-slate-400 leading-relaxed">{desc}</p>

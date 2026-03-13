@@ -111,6 +111,19 @@ export interface GenerationProgress {
     status: GenerationStatus;
 }
 
+// 프로젝트 저장용 슬라이드 (base64 필드 제외)
+export type SavedSlide = Omit<Slide, 'generatedImageBase64' | 'finalCapturedBase64'>;
+
+// 저장된 프로젝트 구조
+export interface SavedProject {
+    version: 1;
+    savedAt: string;
+    overallTitle: string;
+    userStyle: string;
+    slideTemplate: SlideTemplateId;
+    slides: SavedSlide[];
+}
+
 // AI 서비스 반환 타입
 export interface StructuredSlideContent {
     slideTitle: string;

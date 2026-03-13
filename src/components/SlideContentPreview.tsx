@@ -71,10 +71,10 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
 
             {/* 컨트롤 바 - 슬라이드 재생성 옵션 */}
             {onRegenerate && (
-                <div className="flex items-center justify-between p-4 mb-6 rounded-2xl bg-white/5 border border-white/10">
+                <div className="flex items-center justify-between p-4 mb-6 rounded-2xl bg-white/5 border border-white/15">
                     <div className="flex items-center gap-4">
                         <span className="text-sm font-bold text-white">목표 슬라이드 장수 설정</span>
-                        <div className="flex items-center gap-3 bg-black/40 rounded-xl p-1 border border-white/5">
+                        <div className="flex items-center gap-3 bg-slate-700/60 rounded-xl p-1 border border-white/10">
                             <button
                                 onClick={() => {
                                     const num = Number(targetCount) || 5;
@@ -134,18 +134,18 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
             )}
 
             {/* 슬라이드 플랫 리스트 */}
-            <div className="rounded-2xl glass-card border-white/5 overflow-hidden mb-10">
+            <div className="rounded-2xl glass-card border-white/10 overflow-hidden mb-10">
                 {slides.map((slide, idx) => {
                     const isEditing = editingSlideId === slide.id;
 
                     return (
                         <div
                             key={slide.id}
-                            className={`flex gap-4 p-5 border-t border-white/5 first:border-t-0 group transition-colors ${isEditing ? 'bg-indigo-500/5' : 'hover:bg-white/[0.02]'
+                            className={`flex gap-4 p-5 border-t border-white/10 first:border-t-0 group transition-colors ${isEditing ? 'bg-indigo-500/5' : 'hover:bg-white/[0.02]'
                                 }`}
                         >
                             {/* 슬라이드 번호 */}
-                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-400 border border-white/10 flex-shrink-0 mt-0.5">
+                            <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400 border border-white/15 flex-shrink-0 mt-0.5">
                                 {idx + 1}
                             </div>
 
@@ -157,14 +157,14 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                                             autoFocus
                                             value={editTitle}
                                             onChange={(e) => setEditTitle(e.target.value)}
-                                            className="w-full bg-black/40 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white font-bold outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                            className="w-full bg-slate-700/60 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white font-bold outline-none focus:ring-1 focus:ring-indigo-500/50"
                                             placeholder="슬라이드 제목"
                                         />
                                         <textarea
                                             value={editBody}
                                             onChange={(e) => setEditBody(e.target.value)}
                                             rows={4}
-                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
+                                            className="w-full bg-slate-700/60 border border-white/15 rounded-lg px-3 py-2 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
                                             placeholder="본문 내용 (줄바꿈으로 구분)"
                                         />
                                         <div className="flex gap-2">
@@ -203,7 +203,7 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                                                     </li>
                                                 ))}
                                                 {slide.content.length > 5 && (
-                                                    <li className="text-xs text-slate-600 pl-4">
+                                                    <li className="text-xs text-slate-500 pl-4">
                                                         +{slide.content.length - 5}개 더...
                                                     </li>
                                                 )}
@@ -212,7 +212,7 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                                         {slide.contentBlocks && slide.contentBlocks.length > 0 && (
                                             <div className="grid grid-cols-2 gap-2 mt-2">
                                                 {slide.contentBlocks.map((block, bIdx) => (
-                                                    <div key={bIdx} className="bg-white/5 p-2 rounded border border-white/5">
+                                                    <div key={bIdx} className="bg-white/5 p-2 rounded border border-white/10">
                                                         <p className="text-xs font-bold text-indigo-300 mb-1">{block.subtitle}</p>
                                                         <p className="text-[10px] text-slate-400 leading-relaxed">{block.body}</p>
                                                     </div>
@@ -244,7 +244,7 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
             <div className="flex items-center justify-center gap-6 pb-8">
                 <button
                     onClick={onBack}
-                    className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/10 text-slate-400 font-bold hover:bg-white/5 transition-all"
+                    className="flex items-center gap-2 px-8 py-4 rounded-2xl border border-white/15 text-slate-400 font-bold hover:bg-white/5 transition-all"
                 >
                     <ArrowLeft size={18} />
                     처음으로

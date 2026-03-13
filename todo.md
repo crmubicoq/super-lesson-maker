@@ -221,6 +221,32 @@
 - [x] `slideImageGenerator.ts` — geminiApiKey 옵션 전달 (analyze-style, validate-text, generate-slide-image)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 6.6 - 슬라이드 이미지 불러오기 + 프로젝트 저장/불러오기
+- [x] `src/types/slide.ts` — SavedProject/SavedSlide 타입 추가
+- [x] `src/app/api/upload-slide-images/route.ts` 신규 — 외부 이미지 업로드 + sharp 리사이즈 + 저장
+- [x] `src/app/api/save-project/route.ts` 신규 — outputs/[제목]/project.json 저장 (base64 제외)
+- [x] `src/app/api/list-projects/route.ts` 신규 — outputs/ 스캔하여 프로젝트 목록 반환
+- [x] `src/app/api/load-project/route.ts` 신규 — project.json 읽어서 프로젝트 데이터 반환
+- [x] `src/components/ProjectLoader.tsx` 신규 — 프로젝트 목록 모달 UI (카드 목록 + 빈 상태)
+- [x] `page.tsx` — handleSaveProject/handleLoadProject/handleLoadSlideImages + 자동 저장 + UI 버튼 + ProjectLoader 모달
+- [x] `SlideEditor.tsx` — onSaveProject prop + "프로젝트 저장" 버튼
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.7 - 내보내기 개선 (PDF + PPTX + PNG)
+- [x] export 단계에서 개별 슬라이드 PNG 파일도 `slides/` 하위 폴더에 저장
+- [x] 다운로드 버튼 텍스트 변경: "PDF 다운로드 (16:9)" → "다운로드 (PDF + PPTX + PNG)"
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 6.8 - 소프트 다크 모드 테마 변경
+- [x] `globals.css` — CSS 변수 + glass/glass-card rgba 값 밝게 조정
+- [x] `page.tsx` — 메인 배경 `#0F172A` → `#1E293B`, 탑바/카드/보더 밝게
+- [x] `Sidebar.tsx` — 배경 + 보더 밝게
+- [x] `SlideEditor.tsx` — 에디터/프리뷰/패널 배경 + 보더 밝게
+- [x] `SettingsModal.tsx` + `ProjectLoader.tsx` — 모달 배경 `#1E293B` → `#334155`
+- [x] `SlideContentPreview.tsx` + `TOCResult.tsx` — 입력필드/뱃지/보더 밝게
+- [x] `FileUploader.tsx` + `PipelineProgress.tsx` — 배경/보더/텍스트 밝게
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

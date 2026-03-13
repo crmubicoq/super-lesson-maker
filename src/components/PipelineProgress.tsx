@@ -74,7 +74,7 @@ export default function PipelineProgress({ progress }: Props) {
 
                             <div className="flex-1 min-w-0">
                                 <div className={`text-sm font-bold ${
-                                    isActive ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-600'
+                                    isActive ? 'text-white' : isDone ? 'text-slate-400' : 'text-slate-500'
                                 }`}>
                                     {stage.label}
                                 </div>
@@ -100,7 +100,7 @@ export default function PipelineProgress({ progress }: Props) {
                             )}
 
                             {isPending && (
-                                <span className="text-xs text-slate-600">대기 중</span>
+                                <span className="text-xs text-slate-500">대기 중</span>
                             )}
                         </div>
                     );
