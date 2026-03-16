@@ -44,3 +44,15 @@ next-env.d.ts
 # generated files (runtime outputs)
 /outputs/
 /public/generated/
+
+# portable node.js (auto-downloaded)
+/node/
+node_portable.zip
+
+# log files
+*.log.txt
+eslint_errors*.txt
+nextjs_log.txt
+
+# distribution zip
+*.zip

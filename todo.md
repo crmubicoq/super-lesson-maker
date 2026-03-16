@@ -247,6 +247,13 @@
 - [x] `FileUploader.tsx` + `PipelineProgress.tsx` — 배경/보더/텍스트 밝게
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 6.9 - start.bat Node.js 자동 탐색 + 포터블 다운로드
+- [x] 4단계 Node.js 탐색: 시스템 PATH → 로컬 포터블 → 일반 설치 경로 → 자동 다운로드
+- [x] 관리자 권한 CMD에서도 사용자 설치 Node.js 인식 (Program Files, AppData, nvm, fnm, scoop)
+- [x] Node.js 미설치 시 v22.14.0 LTS 포터블 자동 다운로드 + 압축 해제
+- [x] `.gitignore`에 `/node/`, `node_portable.zip`, 로그/zip 파일 추가
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능
