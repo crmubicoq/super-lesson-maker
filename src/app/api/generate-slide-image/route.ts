@@ -8,7 +8,7 @@ import sharp from 'sharp';
 export const maxDuration = 180;
 
 const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = 'gemini-3-pro-image-preview';
+const MODEL = 'gemini-3.1-flash-image-preview';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 const GENERATED_DIR = path.join(process.cwd(), 'public', 'generated', 'slides');
 

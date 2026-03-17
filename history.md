@@ -1,4 +1,13 @@
 ## 📅 2026-03-17
+### [진행 내용]: 이미지 생성 모델 교체 (gemini-3-pro → gemini-3.1-flash-image)
+- **[배경]**: `gemini-3-pro-image-preview` 모델의 무료 API 할당량 제한으로 이미지 생성 불가 상태 발생.
+- **[변경]**:
+  - `generate-slide-image/route.ts`: MODEL → `gemini-3.1-flash-image-preview`
+  - `partial-edit/route.ts`: MODEL → `gemini-3.1-flash-image-preview`
+- **[핵심 원리]**: Gemini 3.1 Flash Image는 Flash 계열이면서 이미지 생성(`responseModalities: ["TEXT", "IMAGE"]`) 지원. Pro 대비 속도 빠르고 할당량 넉넉.
+- **[주의]**: 일반 Flash(2.0/2.5)는 이미지 분석만 가능, 생성 불가. Flash **Image** 모델만 생성 가능.
+- **[빌드 검증]**: 통과
+
 ### [진행 내용]: README.md 업데이트
 - 최근 추가된 기능 반영: 슬라이드 이미지 불러오기, 프로젝트 저장/불러오기, 개별 슬라이드 다운로드, 다중 포맷 내보내기(PDF+PPTX+PNG)
 - 시작하기 섹션에 `start.bat` 실행 방법 추가 (포터블 Node.js 자동 다운로드 안내)

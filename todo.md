@@ -262,6 +262,11 @@
 - [x] README.md 업데이트 (최근 기능 반영 + start.bat 안내 + 내보내기 섹션)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.1 - 이미지 생성 모델 교체
+- [x] `generate-slide-image/route.ts`: `gemini-3-pro-image-preview` → `gemini-3.1-flash-image-preview`
+- [x] `partial-edit/route.ts`: `gemini-3-pro-image-preview` → `gemini-3.1-flash-image-preview`
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

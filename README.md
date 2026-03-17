@@ -21,7 +21,7 @@
 - **Framework**: Next.js 16, React 19, TypeScript
 - **Styling**: Tailwind CSS v4
 - **AI / LLM**:
-  - Google Gemini (gemini-2.5-flash: 텍스트 분석, gemini-2.0-flash: 비전/검증, gemini-3-pro-image-preview: 이미지 생성)
+  - Google Gemini (gemini-2.5-flash: 텍스트 분석, gemini-2.0-flash: 비전/검증, gemini-3.1-flash-image-preview: 이미지 생성)
   - Anthropic Claude (claude-sonnet-4-6: 텍스트 분석 대안)
 - **File Processing**: PDF.js, sharp, jsPDF, PPTXGenJS, html-to-image
 
