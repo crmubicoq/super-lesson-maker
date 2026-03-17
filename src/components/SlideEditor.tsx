@@ -234,6 +234,30 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
         }
     };
 
+    const downloadCurrentSlide = async () => {
+        if (isSaving || !slideRef.current) return;
+        setIsSaving(true);
+        try {
+            const { toPng } = await import('html-to-image');
+            const node = slideRef.current;
+            const targetWidth = 1920;
+            const scale = targetWidth / node.offsetWidth;
+            const imageData = await toPng(node, {
+                pixelRatio: scale,
+                cacheBust: true,
+                style: { margin: '0' },
+            });
+
+            const link = document.createElement('a');
+            link.download = `slide_${String(currentIndex + 1).padStart(2, '0')}.png`;
+            link.href = imageData;
+            link.click();
+        } catch (err) {
+            console.error('[Slide Download Error]', err);
+        }
+        setIsSaving(false);
+    };
+
     const saveAllSlides = async () => {
         if (isSaving) return;
         setIsSaving(true);
@@ -335,12 +359,12 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                         </span>
                     )}
                     <button
-                        onClick={saveAllSlides}
+                        onClick={downloadCurrentSlide}
                         disabled={isSaving}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all disabled:opacity-50"
                     >
                         <Download size={14} />
-                        슬라이드 저장
+                        개별 슬라이드 다운
                     </button>
                     <button
                         onClick={handleComplete}
