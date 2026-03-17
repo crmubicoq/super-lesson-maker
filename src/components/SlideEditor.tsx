@@ -248,10 +248,31 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 style: { margin: '0' },
             });
 
-            const link = document.createElement('a');
-            link.download = `slide_${String(currentIndex + 1).padStart(2, '0')}.png`;
-            link.href = imageData;
-            link.click();
+            const fileName = `slide_${String(currentIndex + 1).padStart(2, '0')}.png`;
+
+            // File System Access API로 저장 위치 선택
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{ description: 'PNG 이미지', accept: { 'image/png': ['.png'] } }],
+                    });
+                    const writable = await handle.createWritable();
+                    const res = await fetch(imageData);
+                    const blob = await res.blob();
+                    await writable.write(blob);
+                    await writable.close();
+                } catch (e) {
+                    // 사용자가 취소한 경우 무시
+                    if ((e as Error).name !== 'AbortError') throw e;
+                }
+            } else {
+                // 폴백: 브라우저 기본 다운로드
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = imageData;
+                link.click();
+            }
         } catch (err) {
             console.error('[Slide Download Error]', err);
         }
