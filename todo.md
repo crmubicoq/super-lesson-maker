@@ -256,8 +256,10 @@
 
 ## [DONE] Milestone 7.0 - 슬라이드 개별 다운로드
 - [x] `downloadCurrentSlide()` 함수 추가 (html-to-image 캡처 → 브라우저 다운로드)
-- [x] "슬라이드 저장" → "슬라이드 다운로드" 버튼 변경 (현재 슬라이드 1장 PNG 다운로드)
+- [x] "슬라이드 저장" → "개별 슬라이드 다운" 버튼 변경 (현재 슬라이드 1장 PNG 다운로드)
+- [x] `showSaveFilePicker` API로 저장 위치 직접 선택 가능 (미지원 브라우저 폴백)
 - [x] 기존 `saveAllSlides()` / `handleComplete()` 로직 영향 없음 확인
+- [x] README.md 업데이트 (최근 기능 반영 + start.bat 안내 + 내보내기 섹션)
 - [x] 빌드 검증 통과
 
 ## [LATER] Milestone 7 - 기능 고도화
