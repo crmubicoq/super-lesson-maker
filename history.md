@@ -1,3 +1,24 @@
+## 📅 2026-03-18
+### [진행 내용]: OCR 텍스트 오버레이 편집기 구현
+- **[배경]**: AI(Gemini)가 생성한 슬라이드 이미지에서 한글 폰트가 깨지는 문제 해결 필요. YouTube에서 NotebookLM Slide Editor의 OCR 기반 텍스트 교체 방식을 발견하여, 이 기법을 우리 SlideEditor에 통합.
+- **[핵심 원리]**:
+  1. 슬라이드 이미지 위에 Canvas 오버레이 배치
+  2. 사용자가 드래그로 깨진 텍스트 영역 선택
+  3. Gemini OCR(2.5 Flash Vision)로 선택 영역의 텍스트 + 스타일(폰트, 크기, 색상, 배경색) 자동 분석
+  4. 배경색으로 원래 깨진 글자를 덮고, 정확한 폰트로 텍스트 재렌더링
+  5. "텍스트 수정 완료" 시 오버레이를 이미지에 합성(bake)하여 기존 저장/내보내기 흐름과 호환
+- **[신규 파일]**:
+  - `src/types/slide.ts`: TextOverlay, OverlayRect, VerticalAlign, HorizontalAlign, OCRAnalysisResult 타입
+  - `src/app/api/ocr-analyze/route.ts`: Gemini 2.5 Flash Vision OCR API (크롭된 이미지 → 텍스트+스타일 JSON)
+  - `src/components/TextOverlayCanvas.tsx`: Canvas 기반 이미지 오버레이 (드래그 선택, 오버레이 렌더링, 이동)
+  - `src/components/TextOverlayControls.tsx`: OCR 분석 버튼 + 텍스트/폰트/색상/정렬/배경 편집 패널
+- **[수정 파일]**:
+  - `src/components/SlideEditor.tsx`: "텍스트 수정" 토글 버튼, 좌측 패널 모드 전환, Canvas 오버레이, bakeOverlays() 합성 함수
+- **[사용자 플로우]**: 헤더 "텍스트 수정" → 이미지 위 드래그 선택 → "AI 분석 (OCR)" → 텍스트 교체 → "적용" → 반복 → "텍스트 수정 완료" → 이미지 합성 저장
+- **[기존 로직 영향]**: 오버레이 합성 후 이미지가 업데이트되므로 기존 저장/내보내기/PDF/PPTX 흐름 그대로 동작
+- **[빌드 검증]**: 통과
+- **[참고 소스]**: `notebooklm-slide-editor-temp/` (EditorCanvas, Sidebar, geminiService, pdfService)
+
 ## 📅 2026-03-17
 ### [진행 내용]: 이미지 생성 모델 교체 (gemini-3-pro → gemini-3.1-flash-image)
 - **[배경]**: `gemini-3-pro-image-preview` 모델의 무료 API 할당량 제한으로 이미지 생성 불가 상태 발생.

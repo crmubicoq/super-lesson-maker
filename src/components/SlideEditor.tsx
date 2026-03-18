@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useLayoutEffect, useMemo } from 'react';
-import { Slide } from '@/types/slide';
+import { Slide, TextOverlay, OverlayRect } from '@/types/slide';
 import { gsap } from 'gsap';
 import SlideRenderer from './slide-templates/SlideRenderer';
+import TextOverlayCanvas from './TextOverlayCanvas';
+import TextOverlayControls from './TextOverlayControls';
 import {
     ChevronLeft,
     ChevronRight,
@@ -17,6 +19,7 @@ import {
     Send,
     X,
     Save,
+    Type,
 } from 'lucide-react';
 
 interface SlideEditorProps {
@@ -43,6 +46,13 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
     const [editMode, setEditMode] = useState(false);
     const [editInstruction, setEditInstruction] = useState('');
     const [isEditing, setIsEditing] = useState(false);
+
+    // 텍스트 수정 모드 관련 상태
+    const [textEditMode, setTextEditMode] = useState(false);
+    const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
+    const [overlaySelection, setOverlaySelection] = useState<OverlayRect | null>(null);
+    const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+    const [isBaking, setIsBaking] = useState(false);
 
     const [localText, setLocalText] = useState('');
 
@@ -188,6 +198,96 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
             console.error('[Regenerate] Error:', error);
         } finally {
             setIsRegenerating(false);
+        }
+    };
+
+    // 슬라이드 전환 시 텍스트 수정 모드 상태 리셋
+    useLayoutEffect(() => {
+        setTextOverlays([]);
+        setOverlaySelection(null);
+        setSelectedOverlayId(null);
+    }, [currentIndex]);
+
+    // 오버레이를 이미지에 합성 (Bake)
+    const bakeOverlays = async () => {
+        if (!currentSlide || textOverlays.length === 0 || !currentSlide.generatedImageUrl) return;
+        setIsBaking(true);
+
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = currentSlide.generatedImageUrl;
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d')!;
+
+            ctx.drawImage(img, 0, 0);
+
+            textOverlays.forEach(ov => {
+                ctx.fillStyle = ov.backgroundColor;
+                ctx.fillRect(ov.rect.x, ov.rect.y, ov.rect.width, ov.rect.height);
+
+                ctx.fillStyle = ov.fontColor;
+                ctx.font = `${ov.fontWeight} ${ov.fontSize}px ${ov.fontFamily}, sans-serif`;
+                if ((ctx as unknown as { letterSpacing?: string }).letterSpacing !== undefined) {
+                    (ctx as unknown as { letterSpacing: string }).letterSpacing = `${ov.letterSpacing || 0}px`;
+                }
+
+                const lines = ov.newText.split('\n');
+                const lineHeight = ov.fontSize * 1.2;
+                const totalTextHeight = lines.length * lineHeight;
+
+                ctx.textAlign = (ov.hAlign || 'left') as CanvasTextAlign;
+                ctx.textBaseline = 'top';
+
+                let tx = ov.rect.x;
+                if (ov.hAlign === 'center') tx = ov.rect.x + ov.rect.width / 2;
+                else if (ov.hAlign === 'right') tx = ov.rect.x + ov.rect.width;
+
+                let ty = ov.rect.y;
+                if (ov.vAlign === 'middle') ty = ov.rect.y + (ov.rect.height - totalTextHeight) / 2;
+                else if (ov.vAlign === 'bottom') ty = ov.rect.y + ov.rect.height - totalTextHeight;
+
+                lines.forEach((line, index) => {
+                    ctx.fillText(line, tx, ty + index * lineHeight);
+                });
+
+                if ((ctx as unknown as { letterSpacing?: string }).letterSpacing !== undefined) {
+                    (ctx as unknown as { letterSpacing: string }).letterSpacing = '0px';
+                }
+            });
+
+            const bakedDataUrl = canvas.toDataURL('image/png');
+
+            // 서버에 저장
+            const saveRes = await fetch('/api/save-slide', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageData: bakedDataUrl, slideId: currentSlide.id }),
+            });
+            const saveResult = await saveRes.json();
+
+            if (saveResult.savedPath) {
+                const newUrl = `${saveResult.savedPath}?t=${Date.now()}`;
+                onUpdateSlide({
+                    ...currentSlide,
+                    generatedImageUrl: newUrl,
+                    generatedImageBase64: bakedDataUrl,
+                    imageUrl: newUrl,
+                });
+            }
+
+            setTextOverlays([]);
+            setOverlaySelection(null);
+            setSelectedOverlayId(null);
+            setTextEditMode(false);
+        } catch (err) {
+            console.error('[Bake Overlays Error]', err);
+        } finally {
+            setIsBaking(false);
         }
     };
 
@@ -379,6 +479,27 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                             {saveMessage}
                         </span>
                     )}
+                    {currentSlide.generatedImageUrl && (
+                        textEditMode ? (
+                            <button
+                                onClick={bakeOverlays}
+                                disabled={isBaking || textOverlays.length === 0}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                            >
+                                {isBaking ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                {isBaking ? '합성 중...' : '텍스트 수정 완료'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setTextEditMode(true)}
+                                disabled={isRegenerating || isEditing}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 text-orange-400 text-xs font-bold transition-all disabled:opacity-50"
+                            >
+                                <Type size={14} />
+                                텍스트 수정
+                            </button>
+                        )
+                    )}
                     <button
                         onClick={downloadCurrentSlide}
                         disabled={isSaving}
@@ -399,75 +520,123 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Left Side: Unified Text Editor + Partial Edit */}
+                {/* Left Side: 모드에 따라 패널 전환 */}
                 <div className="w-[400px] border-r border-white/10 flex flex-col bg-slate-800/60">
-                    {/* 슬라이드 텍스트 편집 */}
-                    <div className="flex-1 flex flex-col p-6 min-h-0">
-                        <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-                            <div className="flex items-center gap-2">
-                                <Pencil size={14} className="text-blue-400" />
-                                원본 슬라이드 대본 <span className="text-[10px] text-slate-500 normal-case">(목차 초안)</span>
-                            </div>
-                        </label>
-                        <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/10">
-                            💡 여기에 적힌 내용이 앞 단계에서 확정한 '슬라이드 내용'입니다. 오른쪽 이미지가 이를 정확히 반영했는지 비교해 보세요.
-                        </p>
-                        <textarea
-                            value={localText}
-                            onChange={(e) => handleCombinedTextChange(e.target.value)}
-                            className="flex-1 w-full bg-white/5 border border-white/15 rounded-xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all resize-none leading-relaxed"
-                            placeholder="슬라이드에 표시할 텍스트를 입력하세요.&#10;첫 줄이 제목이 됩니다."
-                        />
-                    </div>
-
-                    {/* Partial Edit: 수정 지시 영역 */}
-                    <div className="border-t border-white/10 p-6">
-                        {editMode ? (
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                        <Wand2 size={14} className="text-violet-400" />
-                                        수정 지시
-                                    </label>
-                                    <button
-                                        onClick={() => { setEditMode(false); setEditInstruction(''); }}
-                                        className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </div>
-                                <textarea
-                                    value={editInstruction}
-                                    onChange={(e) => setEditInstruction(e.target.value)}
-                                    disabled={isEditing}
-                                    rows={3}
-                                    placeholder="예) 제목을 '새 제목'으로 변경, 배경색을 파란색으로 변경"
-                                    className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none disabled:opacity-50"
-                                />
+                    {textEditMode ? (
+                        /* 텍스트 수정 모드: 오버레이 컨트롤 패널 */
+                        <>
+                            <div className="p-3 border-b border-white/10 flex items-center justify-between bg-orange-500/5">
+                                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Type size={12} />
+                                    텍스트 수정 모드
+                                </span>
                                 <button
-                                    onClick={handlePartialEdit}
-                                    disabled={isEditing || !editInstruction.trim()}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                                    onClick={() => {
+                                        setTextEditMode(false);
+                                        setTextOverlays([]);
+                                        setOverlaySelection(null);
+                                        setSelectedOverlayId(null);
+                                    }}
+                                    className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
+                                    title="텍스트 수정 모드 종료"
                                 >
-                                    {isEditing ? (
-                                        <Loader2 size={14} className="animate-spin" />
-                                    ) : (
-                                        <Send size={14} />
-                                    )}
-                                    {isEditing ? '수정 적용 중...' : '수정 적용'}
+                                    <X size={14} />
                                 </button>
                             </div>
-                        ) : (
-                            <button
-                                onClick={() => setEditMode(true)}
-                                disabled={isRegenerating || isEditing}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all disabled:opacity-50"
-                            >
-                                <Wand2 size={14} />
-                                AI 수정 지시
-                            </button>
-                        )}
-                    </div>
+                            <TextOverlayControls
+                                imageUrl={currentSlide.generatedImageUrl || ''}
+                                selection={overlaySelection}
+                                selectedOverlayId={selectedOverlayId}
+                                overlays={textOverlays}
+                                onApplyOverlay={(overlay) => {
+                                    setTextOverlays(prev => [...prev, overlay]);
+                                    setOverlaySelection(null);
+                                    setSelectedOverlayId(overlay.id);
+                                }}
+                                onUpdateOverlays={setTextOverlays}
+                                onDeleteOverlay={(id) => {
+                                    setTextOverlays(prev => prev.filter(o => o.id !== id));
+                                    if (selectedOverlayId === id) setSelectedOverlayId(null);
+                                }}
+                                onUndo={() => {
+                                    setTextOverlays(prev => prev.slice(0, -1));
+                                    setSelectedOverlayId(null);
+                                }}
+                                geminiApiKey={geminiApiKey}
+                            />
+                        </>
+                    ) : (
+                        /* 기본 모드: 텍스트 편집 + AI 수정 지시 */
+                        <>
+                            {/* 슬라이드 텍스트 편집 */}
+                            <div className="flex-1 flex flex-col p-6 min-h-0">
+                                <label className="flex items-center justify-between gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Pencil size={14} className="text-blue-400" />
+                                        원본 슬라이드 대본 <span className="text-[10px] text-slate-500 normal-case">(목차 초안)</span>
+                                    </div>
+                                </label>
+                                <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/10">
+                                    여기에 적힌 내용이 앞 단계에서 확정한 &lsquo;슬라이드 내용&rsquo;입니다. 오른쪽 이미지가 이를 정확히 반영했는지 비교해 보세요.
+                                </p>
+                                <textarea
+                                    value={localText}
+                                    onChange={(e) => handleCombinedTextChange(e.target.value)}
+                                    className="flex-1 w-full bg-white/5 border border-white/15 rounded-xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 transition-all resize-none leading-relaxed"
+                                    placeholder="슬라이드에 표시할 텍스트를 입력하세요.&#10;첫 줄이 제목이 됩니다."
+                                />
+                            </div>
+
+                            {/* Partial Edit: 수정 지시 영역 */}
+                            <div className="border-t border-white/10 p-6">
+                                {editMode ? (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                                <Wand2 size={14} className="text-violet-400" />
+                                                수정 지시
+                                            </label>
+                                            <button
+                                                onClick={() => { setEditMode(false); setEditInstruction(''); }}
+                                                className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            value={editInstruction}
+                                            onChange={(e) => setEditInstruction(e.target.value)}
+                                            disabled={isEditing}
+                                            rows={3}
+                                            placeholder="예) 제목을 '새 제목'으로 변경, 배경색을 파란색으로 변경"
+                                            className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none disabled:opacity-50"
+                                        />
+                                        <button
+                                            onClick={handlePartialEdit}
+                                            disabled={isEditing || !editInstruction.trim()}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                                        >
+                                            {isEditing ? (
+                                                <Loader2 size={14} className="animate-spin" />
+                                            ) : (
+                                                <Send size={14} />
+                                            )}
+                                            {isEditing ? '수정 적용 중...' : '수정 적용'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setEditMode(true)}
+                                        disabled={isRegenerating || isEditing}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all disabled:opacity-50"
+                                    >
+                                        <Wand2 size={14} />
+                                        AI 수정 지시
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Right Side: Preview */}
@@ -492,13 +661,28 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                     <div ref={slideRef} className="w-full max-w-4xl shrink-0 aspect-[1920/1080] rounded-xl overflow-hidden shadow-2xl shadow-black ring-1 ring-white/10 relative">
                         {currentSlide.generatedImageUrl ? (
                             <>
-                                <img
-                                    src={currentSlide.generatedImageUrl}
-                                    alt={currentSlide.slideTitle}
-                                    className="w-full h-full object-fill"
-                                />
+                                {textEditMode ? (
+                                    /* 텍스트 수정 모드: Canvas 오버레이 */
+                                    <TextOverlayCanvas
+                                        imageUrl={currentSlide.generatedImageUrl}
+                                        overlays={textOverlays}
+                                        selectedOverlayId={selectedOverlayId}
+                                        onSelectionChange={(rect) => {
+                                            setOverlaySelection(rect);
+                                            if (rect) setSelectedOverlayId(null);
+                                        }}
+                                        onOverlaySelect={setSelectedOverlayId}
+                                        onUpdateOverlays={setTextOverlays}
+                                    />
+                                ) : (
+                                    <img
+                                        src={currentSlide.generatedImageUrl}
+                                        alt={currentSlide.slideTitle}
+                                        className="w-full h-full object-fill"
+                                    />
+                                )}
                                 {isRegenerating && (
-                                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+                                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10">
                                         <Loader2 size={32} className="text-blue-400 animate-spin mb-3" />
                                         <span className="text-sm text-white font-bold">이미지 재생성 중...</span>
                                     </div>

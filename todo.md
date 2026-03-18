@@ -267,6 +267,14 @@
 - [x] `partial-edit/route.ts`: `gemini-3-pro-image-preview` → `gemini-3.1-flash-image-preview`
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.2 - OCR 텍스트 오버레이 편집기
+- [x] `src/types/slide.ts`: TextOverlay, OverlayRect, OCRAnalysisResult 타입 추가
+- [x] `src/app/api/ocr-analyze/route.ts` 신규 — Gemini 2.5 Flash Vision OCR 분석 (텍스트 + 폰트 + 색상 + 배경색)
+- [x] `src/components/TextOverlayCanvas.tsx` 신규 — 이미지 위 Canvas 오버레이 (드래그 선택, 오버레이 렌더링, 이동)
+- [x] `src/components/TextOverlayControls.tsx` 신규 — OCR 분석 + 텍스트/폰트/색상/정렬/배경 편집 컨트롤 패널
+- [x] `src/components/SlideEditor.tsx` 수정 — "텍스트 수정" 모드 토글 + Canvas 오버레이 + 이미지 합성(bake) 기능
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

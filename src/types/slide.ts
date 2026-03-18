@@ -124,6 +124,41 @@ export interface SavedProject {
     slides: SavedSlide[];
 }
 
+// 텍스트 오버레이 편집 관련 타입
+export interface OverlayRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+export type VerticalAlign = 'top' | 'middle' | 'bottom';
+export type HorizontalAlign = 'left' | 'center' | 'right';
+
+export interface TextOverlay {
+    id: string;
+    rect: OverlayRect;
+    originalText: string;
+    newText: string;
+    fontSize: number;
+    fontWeight: string;
+    fontColor: string;
+    fontFamily: string;
+    backgroundColor: string;
+    vAlign: VerticalAlign;
+    hAlign: HorizontalAlign;
+    letterSpacing?: number;
+}
+
+export interface OCRAnalysisResult {
+    text: string;
+    fontSize: number;
+    fontWeight: string;
+    fontColor: string;
+    fontFamily: string;
+    backgroundColor: string;
+}
+
 // AI 서비스 반환 타입
 export interface StructuredSlideContent {
     slideTitle: string;
