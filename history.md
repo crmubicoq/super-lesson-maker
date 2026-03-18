@@ -1,4 +1,21 @@
 ## 📅 2026-03-18
+### [진행 내용]: 영역 선택 + AI 수정 지시 통합 (v7.3)
+- **[배경]**: 기존 텍스트 오버레이 방식(배경색+텍스트 덮어쓰기)은 주변과 시각적 이질감이 심함. 사용자 제안으로 "AI 수정 지시" 모드에 영역 선택 기능을 통합하여, Gemini가 해당 영역의 텍스트를 자연스럽게 재생성하는 방식으로 전환.
+- **[핵심 원리]**:
+  1. "AI 수정 지시" 클릭 시 이미지 위에 영역 선택 캔버스 활성화
+  2. 사용자가 드래그로 수정할 영역 지정 (빨간 점선 사각형)
+  3. 클라이언트에서 선택 영역을 이미지에 마킹 (Canvas annotateImage)
+  4. 마킹된 이미지 + 수정 지시문을 Gemini에 전송
+  5. Gemini가 "빨간 점선 영역만 수정, 나머지 유지"하여 이미지 재생성
+  6. AI가 이미지 전체를 재생성하므로 주변과 자연스럽게 어울림
+- **[신규 파일]**:
+  - `src/components/AreaSelectionCanvas.tsx`: 경량 영역 선택 전용 캔버스 (이미지 표시 + 드래그 선택 + 빨간 점선 렌더링)
+- **[수정 파일]**:
+  - `src/components/SlideEditor.tsx`: 텍스트 오버레이 모드(textEditMode, bakeOverlays, TextOverlayCanvas/Controls) 제거, editMode에서 AreaSelectionCanvas 표시, handlePartialEdit에 annotateImage + annotatedImageBase64 전송 로직 추가
+  - `src/app/api/partial-edit/route.ts`: annotatedImageBase64/hasSelectionArea 필드 추가, 영역 선택 시 "빨간 점선 영역만 수정" 프롬프트 섹션 추가
+- **[제거된 기능]**: 텍스트 수정(오버레이) 모드 UI 제거 (파일은 보존)
+- **[빌드 검증]**: 통과
+
 ### [진행 내용]: OCR 텍스트 오버레이 편집기 구현
 - **[배경]**: AI(Gemini)가 생성한 슬라이드 이미지에서 한글 폰트가 깨지는 문제 해결 필요. YouTube에서 NotebookLM Slide Editor의 OCR 기반 텍스트 교체 방식을 발견하여, 이 기법을 우리 SlideEditor에 통합.
 - **[핵심 원리]**:

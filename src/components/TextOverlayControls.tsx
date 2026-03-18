@@ -32,9 +32,21 @@ interface TextOverlayControlsProps {
 }
 
 const FONTS = [
+    // 한글 고딕 (Sans-serif 계열)
+    { name: 'Noto Sans KR (추천)', value: 'Noto Sans KR' },
+    { name: '나눔고딕', value: 'Nanum Gothic' },
+    { name: 'IBM Plex Sans KR', value: 'IBM Plex Sans KR' },
+    { name: '맑은 고딕 (시스템)', value: 'Malgun Gothic' },
+    // 한글 명조 (Serif 계열)
+    { name: 'Noto Serif KR', value: 'Noto Serif KR' },
+    { name: '나눔명조', value: 'Nanum Myeongjo' },
+    // 한글 디스플레이 (타이틀용)
+    { name: 'Black Han Sans (제목)', value: 'Black Han Sans' },
+    { name: 'Do Hyeon (제목)', value: 'Do Hyeon' },
+    { name: 'Jua (둥근)', value: 'Jua' },
+    // 영문/기본
     { name: 'Sans-serif (기본)', value: 'sans-serif' },
     { name: 'Arial', value: 'Arial' },
-    { name: 'Roboto', value: 'Roboto' },
     { name: 'Serif', value: 'serif' },
     { name: 'Monospace', value: 'monospace' },
 ];
@@ -61,6 +73,8 @@ export default function TextOverlayControls({
     const [vAlign, setVAlign] = useState<VerticalAlign>('top');
     const [hAlign, setHAlign] = useState<HorizontalAlign>('left');
     const [letterSpacing, setLetterSpacing] = useState(0);
+    const [backgroundPadding, setBackgroundPadding] = useState(5);
+    const [edgeBlur, setEdgeBlur] = useState(4);
     const [backgroundColor, setBackgroundColor] = useState('#ffffff');
     const [isTransparent, setIsTransparent] = useState(false);
 
@@ -87,6 +101,8 @@ export default function TextOverlayControls({
             setVAlign(selectedOverlay.vAlign || 'top');
             setHAlign(selectedOverlay.hAlign || 'left');
             setLetterSpacing(selectedOverlay.letterSpacing || 0);
+            setBackgroundPadding(selectedOverlay.backgroundPadding ?? 5);
+            setEdgeBlur(selectedOverlay.edgeBlur ?? 4);
 
             const bg = selectedOverlay.backgroundColor;
             if (bg === 'rgba(0,0,0,0)' || bg === 'transparent') {
@@ -228,7 +244,7 @@ export default function TextOverlayControls({
             const result: OCRAnalysisResult = await res.json();
             setOcrResult(result);
             setReplacementText(result.text);
-            setFontSize(result.fontSize);
+            setFontSize(Math.max(result.fontSize || 16, 8));
             setFontWeight(result.fontWeight);
             setFontColor(result.fontColor);
             setFontFamily(result.fontFamily);
@@ -259,11 +275,13 @@ export default function TextOverlayControls({
             rect: { ...selection },
             originalText: ocrResult?.text || '',
             newText: replacementText,
-            fontSize,
+            fontSize: Math.max(fontSize || 16, 8),
             fontWeight,
             fontColor,
             fontFamily,
             backgroundColor: isTransparent ? 'rgba(0,0,0,0)' : backgroundColor,
+            backgroundPadding,
+            edgeBlur,
             vAlign,
             hAlign,
             letterSpacing,
@@ -380,19 +398,28 @@ export default function TextOverlayControls({
                         </div>
                     </div>
 
-                    {/* 글꼴 */}
+                    {/* 글꼴 — 시각적 미리보기 피커 */}
                     <div className="space-y-1.5">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">글꼴</label>
-                        <select
-                            value={fontFamily}
-                            onChange={(e) => {
-                                setFontFamily(e.target.value);
-                                if (isEditing) updateSelectedOverlay({ fontFamily: e.target.value });
-                            }}
-                            className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500/50"
-                        >
-                            {FONTS.map(f => <option key={f.value} value={f.value}>{f.name}</option>)}
-                        </select>
+                        <div className="max-h-[120px] overflow-y-auto bg-white/5 border border-white/15 rounded-lg p-1 space-y-0.5">
+                            {FONTS.map(f => (
+                                <button
+                                    key={f.value}
+                                    onClick={() => {
+                                        setFontFamily(f.value);
+                                        if (isEditing) updateSelectedOverlay({ fontFamily: f.value });
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors truncate ${
+                                        fontFamily === f.value
+                                            ? 'bg-blue-500/20 border border-blue-500/30 text-blue-200'
+                                            : 'text-slate-300 hover:bg-white/10 border border-transparent'
+                                    }`}
+                                    style={{ fontFamily: `"${f.value}", sans-serif` }}
+                                >
+                                    {f.name}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* 크기 + 글자 색상 */}
@@ -402,10 +429,12 @@ export default function TextOverlayControls({
                             <input
                                 type="number"
                                 value={fontSize}
+                                min={8}
                                 onChange={(e) => {
-                                    const val = parseInt(e.target.value);
-                                    setFontSize(val);
-                                    if (isEditing) updateSelectedOverlay({ fontSize: val });
+                                    const val = parseInt(e.target.value) || 16;
+                                    const clamped = Math.max(val, 8);
+                                    setFontSize(clamped);
+                                    if (isEditing) updateSelectedOverlay({ fontSize: clamped });
                                 }}
                                 className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500/50"
                             />
@@ -462,6 +491,50 @@ export default function TextOverlayControls({
                         </div>
                     </div>
 
+                    {/* 배경 여백 (패딩) */}
+                    <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">배경 여백</label>
+                            <span className="text-[10px] font-mono text-slate-400">{backgroundPadding}px</span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0}
+                            max={30}
+                            step={1}
+                            value={backgroundPadding}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                setBackgroundPadding(val);
+                                if (isEditing) updateSelectedOverlay({ backgroundPadding: val });
+                            }}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                        />
+                        <p className="text-[9px] text-slate-600">배경색이 텍스트 영역보다 넓게 덮는 여백 크기</p>
+                    </div>
+
+                    {/* 가장자리 블러 */}
+                    <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">가장자리 블러</label>
+                            <span className="text-[10px] font-mono text-slate-400">{edgeBlur}px</span>
+                        </div>
+                        <input
+                            type="range"
+                            min={0}
+                            max={20}
+                            step={1}
+                            value={edgeBlur}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                setEdgeBlur(val);
+                                if (isEditing) updateSelectedOverlay({ edgeBlur: val });
+                            }}
+                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                        />
+                        <p className="text-[9px] text-slate-600">가장자리를 부드럽게 흐려 주변과 자연스럽게 블렌딩</p>
+                    </div>
+
                     {/* 두께 + 자간 */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
@@ -490,7 +563,7 @@ export default function TextOverlayControls({
                                     step="0.1"
                                     value={letterSpacing}
                                     onChange={(e) => {
-                                        const val = parseFloat(e.target.value);
+                                        const val = parseFloat(e.target.value) || 0;
                                         setLetterSpacing(val);
                                         if (isEditing) updateSelectedOverlay({ letterSpacing: val });
                                     }}

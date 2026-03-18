@@ -41,6 +41,15 @@ export default function TextOverlayCanvas({
     const [isDrawing, setIsDrawing] = useState(false);
     const [isDraggingOverlay, setIsDraggingOverlay] = useState(false);
     const [startPoint, setStartPoint] = useState<Point | null>(null);
+    const prevOverlayCountRef = useRef(overlays.length);
+
+    // 오버레이가 추가되면 내부 selection 클리어 (적용 완료)
+    useEffect(() => {
+        if (overlays.length > prevOverlayCountRef.current) {
+            setSelection(null);
+        }
+        prevOverlayCountRef.current = overlays.length;
+    }, [overlays.length]);
 
     // 이미지 로드 및 캔버스 크기 맞추기
     useEffect(() => {
@@ -79,14 +88,22 @@ export default function TextOverlayCanvas({
         if (!canvas || !ctx || !image) return;
 
         const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
         const dpr = window.devicePixelRatio || 1;
-        if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            ctx.scale(dpr, dpr);
+        const w = Math.round(rect.width * dpr);
+        const h = Math.round(rect.height * dpr);
+
+        // 캔버스 물리 해상도 조정 (필요시만)
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
         }
 
+        // 매 프레임 DPR 트랜스폼을 명시적으로 리셋 (상태 누적 방지)
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, rect.width, rect.height);
+
         ctx.save();
         ctx.translate(offset.x, offset.y);
         ctx.scale(scale, scale);
@@ -96,26 +113,45 @@ export default function TextOverlayCanvas({
 
         // 오버레이 렌더링
         overlays.forEach(overlay => {
-            // 배경 채우기
+            const pad = overlay.backgroundPadding || 0;
+            const blur = overlay.edgeBlur ?? 4;
+            const bx = overlay.rect.x - pad;
+            const by = overlay.rect.y - pad;
+            const bw = overlay.rect.width + pad * 2;
+            const bh = overlay.rect.height + pad * 2;
+
+            // 배경 채우기 (가장자리 블러로 자연스러운 블렌딩)
+            if (blur > 0) {
+                ctx.save();
+                ctx.shadowColor = overlay.backgroundColor;
+                ctx.shadowBlur = blur;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.fillStyle = overlay.backgroundColor;
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.restore();
+            }
+            // 중앙부는 완전 불투명으로 덮어쓰기 (깨진 텍스트 완전 차단)
             ctx.fillStyle = overlay.backgroundColor;
-            ctx.fillRect(overlay.rect.x, overlay.rect.y, overlay.rect.width, overlay.rect.height);
+            ctx.fillRect(bx, by, bw, bh);
 
             // 선택된 오버레이 테두리
             if (overlay.id === selectedOverlayId) {
                 ctx.strokeStyle = PRIMARY_COLOR;
                 ctx.lineWidth = 2 / scale;
-                ctx.strokeRect(overlay.rect.x, overlay.rect.y, overlay.rect.width, overlay.rect.height);
+                ctx.strokeRect(bx, by, bw, bh);
             }
 
             // 텍스트 렌더링
+            const fontSize = Math.max(overlay.fontSize || 16, 8);
             ctx.fillStyle = overlay.fontColor;
-            ctx.font = `${overlay.fontWeight} ${overlay.fontSize}px ${overlay.fontFamily}, sans-serif`;
+            ctx.font = `${overlay.fontWeight} ${fontSize}px "${overlay.fontFamily}", sans-serif`;
             if ((ctx as unknown as { letterSpacing?: string }).letterSpacing !== undefined) {
                 (ctx as unknown as { letterSpacing: string }).letterSpacing = `${overlay.letterSpacing || 0}px`;
             }
 
             const lines = overlay.newText.split('\n');
-            const lineHeight = overlay.fontSize * 1.2;
+            const lineHeight = fontSize * 1.2;
             const totalTextHeight = lines.length * lineHeight;
 
             ctx.textAlign = (overlay.hAlign || 'left') as CanvasTextAlign;
@@ -138,7 +174,7 @@ export default function TextOverlayCanvas({
             }
         });
 
-        // 선택 영역 렌더링
+        // 선택 영역 렌더링 (오버레이가 아닌 새 영역 드래그 중일 때만)
         if (selection) {
             ctx.strokeStyle = PRIMARY_COLOR;
             ctx.lineWidth = 2 / scale;

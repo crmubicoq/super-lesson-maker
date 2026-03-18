@@ -21,6 +21,8 @@ interface PartialEditRequest {
     totalSlides: number;
     styleDescription: string;
     referenceImageBase64?: string;
+    annotatedImageBase64?: string;  // 영역 마킹된 이미지 (클라이언트에서 생성)
+    hasSelectionArea?: boolean;     // 영역 선택 여부
 }
 
 function buildPartialEditPrompt(req: PartialEditRequest): string {
@@ -34,6 +36,15 @@ function buildPartialEditPrompt(req: PartialEditRequest): string {
         contentSection += `\n\n본문: ${req.bodyText}`;
     }
 
+    // 영역 선택이 있으면 해당 섹션 추가
+    const selectionSection = req.hasSelectionArea ? `
+## 수정 대상 영역
+이미지에 빨간 점선 사각형으로 표시된 영역이 수정 대상입니다.
+- 해당 영역의 내용(텍스트, 그래픽 등)을 아래 수정 지시에 따라 수정하세요.
+- **표시 영역 바깥의 모든 요소는 절대 변경하지 마세요.**
+- 수정 완료 후 빨간 점선 표시는 완전히 제거하고 원래 디자인 그대로 복원하세요.
+` : '';
+
     return `당신은 강의 교안 이미지 디자이너입니다. 첨부된 기존 교안 페이지 이미지를 기반으로 사용자의 수정 지시에 따라 이미지를 수정하세요.
 
 ## [최우선 1] 이미지 캔버스 — 반드시 준수
@@ -44,7 +55,7 @@ function buildPartialEditPrompt(req: PartialEditRequest): string {
 - **절대 금지**: 검은색/회색/어두운 테두리, 여백, 그림자, 프레임.
 - 비율은 가로 16 : 세로 9 (표준 와이드 화면 비율). 정사각형이나 세로형 금지.
 
-## [최우선 2] 사용자 수정 지시
+${selectionSection}## [최우선 2] 사용자 수정 지시
 """
 ${req.instruction}
 """
@@ -92,7 +103,13 @@ export async function POST(request: NextRequest) {
         // 기존 슬라이드 이미지를 base64로 로드
         const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
-        if (body.existingImageUrl) {
+        if (body.annotatedImageBase64) {
+            // 영역 마킹된 이미지가 있으면 그것을 사용
+            const raw = body.annotatedImageBase64.replace(/^data:image\/\w+;base64,/, '');
+            parts.push({
+                inlineData: { mimeType: 'image/png', data: raw },
+            });
+        } else if (body.existingImageUrl) {
             try {
                 // URL에서 쿼리스트링(?t=...) 제거 후 파일 경로 생성
                 const cleanUrl = body.existingImageUrl.split('?')[0];
@@ -115,9 +132,13 @@ export async function POST(request: NextRequest) {
             });
         }
 
+        const imagePrefix = body.hasSelectionArea
+            ? `[중요] 첫 번째 이미지는 수정할 기존 슬라이드이며, 빨간 점선 사각형으로 수정 대상 영역이 표시되어 있습니다. 표시된 영역만 수정하고 나머지는 그대로 유지하세요.\n\n`
+            : `[중요] 첫 번째 이미지는 수정할 기존 슬라이드입니다. 이 슬라이드를 기반으로 아래 수정 지시를 적용하세요.\n\n`;
+
         parts.push({
             text: parts.length > 0
-                ? `[중요] 첫 번째 이미지는 수정할 기존 슬라이드입니다. 이 슬라이드를 기반으로 아래 수정 지시를 적용하세요.\n\n${prompt}`
+                ? `${imagePrefix}${prompt}`
                 : prompt,
         });
 

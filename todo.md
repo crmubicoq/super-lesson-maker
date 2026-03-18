@@ -275,6 +275,15 @@
 - [x] `src/components/SlideEditor.tsx` 수정 — "텍스트 수정" 모드 토글 + Canvas 오버레이 + 이미지 합성(bake) 기능
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.3 - 영역 선택 + AI 수정 지시 통합
+- [x] `src/components/AreaSelectionCanvas.tsx` 신규 — 경량 영역 선택 전용 캔버스 (빨간 점선 사각형)
+- [x] `src/components/SlideEditor.tsx` 수정 — 텍스트 오버레이 모드 제거, AI 수정 지시에 영역 선택 통합
+  - editMode 활성화 시 이미지 위에 AreaSelectionCanvas 표시
+  - 선택 영역을 빨간 점선으로 마킹한 이미지를 annotatedImageBase64로 전송
+  - 영역 선택 인디케이터 + 동적 placeholder UI
+- [x] `src/app/api/partial-edit/route.ts` 수정 — annotatedImageBase64/hasSelectionArea 필드 추가, 영역 대상 프롬프트 섹션 추가
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

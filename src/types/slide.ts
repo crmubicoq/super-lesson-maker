@@ -145,6 +145,8 @@ export interface TextOverlay {
     fontColor: string;
     fontFamily: string;
     backgroundColor: string;
+    backgroundPadding?: number;
+    edgeBlur?: number;
     vAlign: VerticalAlign;
     hAlign: HorizontalAlign;
     letterSpacing?: number;
