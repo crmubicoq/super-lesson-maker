@@ -298,6 +298,13 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.5 - 초안 마크다운 다운로드
+- [x] `SlideContentPreview.tsx`: `slidesToMarkdown()` 변환 함수 추가 (제목/본문/불릿/블록/발표자 노트 → MD 형식)
+- [x] `SlideContentPreview.tsx`: `handleDownloadMarkdown()` Blob 다운로드 함수 추가
+- [x] `SlideContentPreview.tsx`: 헤더 영역에 "MD 다운로드" 버튼 UI 추가
+- [x] `.gitattributes`: `*.bat -text` 설정 추가 (GitHub ZIP 다운로드 시 CRLF 보존)
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

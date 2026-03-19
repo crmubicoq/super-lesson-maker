@@ -1,4 +1,20 @@
 ## 📅 2026-03-19
+### [진행 내용]: 초안 마크다운 다운로드 기능 (v7.5)
+- **[배경]**: 초안 미리보기 단계에서 생성된 슬라이드 콘텐츠(제목, 본문, 불릿 포인트, 발표자 노트 등)를 `.md` 파일로 내려받을 수 있는 기능 요청.
+- **[핵심 원리]**:
+  1. `slidesToMarkdown()` — slides 배열을 순회하며 제목(`## N. slideTitle`), 본문(bodyText), 불릿(`- content`), 블록(`### subtitle`), 발표자 노트(`> 발표자 노트:`) 순으로 마크다운 문자열 생성
+  2. `handleDownloadMarkdown()` — `Blob` + `URL.createObjectURL` + 앵커 클릭 패턴으로 클라이언트 사이드 파일 다운로드
+  3. 헤더 영역에 "MD 다운로드" 버튼 배치 (Download 아이콘 + emerald 호버 스타일)
+- **[수정 파일]**:
+  - `src/components/SlideContentPreview.tsx`: slidesToMarkdown, handleDownloadMarkdown 함수 + "MD 다운로드" 버튼 UI
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: start.bat CRLF 보존 (.gitattributes)
+- **[배경]**: GitHub에서 ZIP으로 다운로드하면 start.bat이 LF 줄바꿈으로 전달되어 Windows cmd.exe에서 실행 불가.
+- **[원인]**: `core.autocrlf=true` 설정으로 커밋 시 LF로 정규화됨. GitHub ZIP(`git archive`)은 eol 변환을 적용하지 않아 LF 그대로 전달.
+- **[수정 내용]**: `.gitattributes`에 `*.bat -text` 추가하여 bat 파일의 줄바꿈 변환을 완전 비활성화. 저장소에 CRLF 그대로 보존.
+- **[빌드 검증]**: 통과
+
 ### [진행 내용]: AI 수정 지시 큐 기능 (v7.4)
 - **[배경]**: 기존에는 AI 수정 지시를 한 번에 1개만 입력/실행 가능하여 여러 곳을 수정하려면 수정→대기→수정→대기를 반복해야 했음. 최대 3개까지 큐에 담아 자동 순차 실행하도록 개선.
 - **[핵심 원리]**:
