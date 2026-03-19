@@ -1,0 +1,2 @@
+# Windows batch files: no line-ending conversion (preserve CRLF in repo)
+*.bat -text
