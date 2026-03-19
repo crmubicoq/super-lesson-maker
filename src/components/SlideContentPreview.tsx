@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Slide } from '@/types/slide';
-import { Edit3, Check, ArrowRight, ArrowLeft, FileText, Layers } from 'lucide-react';
+import { Edit3, Check, ArrowRight, ArrowLeft, FileText, Layers, Download } from 'lucide-react';
 
 interface SlideContentPreviewProps {
     slides: Slide[];
@@ -15,6 +15,43 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
     const [editTitle, setEditTitle] = useState('');
     const [editBody, setEditBody] = useState('');
     const [targetCount, setTargetCount] = useState<number | string>(slides.length);
+
+    const slidesToMarkdown = (): string => {
+        const coverSlide = slides.find(s => s.slideRole === 'cover');
+        let md = `# ${coverSlide?.slideTitle || '강의 교안'}\n\n`;
+
+        slides.forEach((slide, idx) => {
+            md += `---\n\n## ${idx + 1}. ${slide.slideTitle}\n\n`;
+
+            if (slide.bodyText) {
+                md += `${slide.bodyText}\n\n`;
+            }
+            if (slide.content && slide.content.length > 0 && !slide.bodyText) {
+                slide.content.forEach(point => { md += `- ${point}\n`; });
+                md += '\n';
+            }
+            if (slide.contentBlocks && slide.contentBlocks.length > 0) {
+                slide.contentBlocks.forEach(block => {
+                    md += `### ${block.subtitle}\n${block.body}\n\n`;
+                });
+            }
+            if (slide.speakerNotes) {
+                md += `> **발표자 노트:** ${slide.speakerNotes}\n\n`;
+            }
+        });
+        return md;
+    };
+
+    const handleDownloadMarkdown = () => {
+        const md = slidesToMarkdown();
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `교안_초안.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
 
     const startEdit = (slide: Slide) => {
         setEditingSlideId(slide.id);
@@ -61,7 +98,15 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                         </p>
                     </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleDownloadMarkdown}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/15 hover:bg-emerald-500/10 hover:border-emerald-500/30 text-slate-400 hover:text-emerald-300 text-xs font-bold transition-all"
+                        title="초안 내용을 마크다운 파일로 다운로드"
+                    >
+                        <Download size={14} />
+                        MD 다운로드
+                    </button>
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
                         <FileText size={14} className="text-indigo-400" />
                         <span className="text-xs font-bold text-indigo-400">현재 {slides.length}장</span>
