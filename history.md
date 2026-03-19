@@ -1,3 +1,24 @@
+## 📅 2026-03-19
+### [진행 내용]: AI 수정 지시 큐 기능 (v7.4)
+- **[배경]**: 기존에는 AI 수정 지시를 한 번에 1개만 입력/실행 가능하여 여러 곳을 수정하려면 수정→대기→수정→대기를 반복해야 했음. 최대 3개까지 큐에 담아 자동 순차 실행하도록 개선.
+- **[핵심 원리]**:
+  1. 각 수정은 이전 결과 이미지를 기반으로 해야 하므로 병렬이 아닌 **순차 실행** (image chaining)
+  2. `EditTask` 큐에 지시문 + 영역 선택을 함께 저장
+  3. 큐 순회 시 `slide` 변수를 누적 업데이트하며 `onUpdateSlide` + `currentSlideRef` 갱신
+  4. 큐 없이 단일 수정도 기존과 동일하게 동작 (하위 호환)
+- **[수정 파일]**:
+  - `src/components/SlideEditor.tsx`: EditTask 타입, editQueue/processingIndex 상태, handleAddToQueue 함수, handlePartialEdit 큐 확장, UI(큐 목록 + "+ 추가" / "전체 적용" 버튼)
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: 텍스트 수정 원복 버그 수정 (v7.3.1)
+- **[배경]**: 좌측 텍스트 영역에서 슬라이드 텍스트를 수정한 후, AI 수정 지시 등 다른 작업을 하면 이전에 수정한 텍스트가 원래 값으로 되돌아가는 버그 발견.
+- **[원인]**: `useLayoutEffect`의 의존성 배열에 `localText`가 포함되어 있어, 사용자가 타이핑할 때마다 effect가 실행. 이 시점에 `currentSlide`(부모 state에서 파생)가 아직 업데이트되지 않아 localText를 이전 값으로 되돌려씀 (race condition). 추가로 `handlePartialEdit`/`handleRegenerate`에서 비동기 완료 시 stale closure로 인한 텍스트 덮어쓰기 문제.
+- **[수정 내용]**:
+  1. `useLayoutEffect` 의존성: `[currentSlide, localText]` → `[currentIndex, currentSlide]` + `prevIndexRef`로 슬라이드 전환 시에만 동기화
+  2. `currentSlideRef` 추가 — `handlePartialEdit`, `handleRegenerate`의 `onUpdateSlide` 호출에서 항상 최신 상태 참조
+- **[핵심 원리]**: React 상태 업데이트는 비동기적. 자식 컴포넌트에서 부모 setState를 호출하면, 부모에서 파생된 props가 자식에 전달되기까지 한 렌더 사이클 지연이 있음. 이 지연 동안 effect가 재실행되면 구 값을 참조하게 됨. 해결: effect 의존성에서 자주 바뀌는 값(localText)을 제거하고, 전환 감지용 ref를 사용.
+- **[빌드 검증]**: 통과
+
 ## 📅 2026-03-18
 ### [진행 내용]: 영역 선택 + AI 수정 지시 통합 (v7.3)
 - **[배경]**: 기존 텍스트 오버레이 방식(배경색+텍스트 덮어쓰기)은 주변과 시각적 이질감이 심함. 사용자 제안으로 "AI 수정 지시" 모드에 영역 선택 기능을 통합하여, Gemini가 해당 영역의 텍스트를 자연스럽게 재생성하는 방식으로 전환.

@@ -284,6 +284,20 @@
 - [x] `src/app/api/partial-edit/route.ts` 수정 — annotatedImageBase64/hasSelectionArea 필드 추가, 영역 대상 프롬프트 섹션 추가
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.3.1 - 텍스트 수정 원복 버그 수정
+- [x] `useLayoutEffect` 의존성 수정: `[currentSlide, localText]` → `[currentIndex, currentSlide]` (슬라이드 전환 시에만 동기화)
+- [x] `prevIndexRef` 추가 — 같은 슬라이드에서는 localText 덮어쓰기 방지
+- [x] `currentSlideRef` 추가 — 비동기 핸들러(handlePartialEdit, handleRegenerate)에서 stale closure 방지
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 7.4 - AI 수정 지시 큐 기능 (최대 3건 일괄 처리)
+- [x] `EditTask` 인터페이스 + `editQueue`/`processingIndex` 상태 추가
+- [x] `handleAddToQueue()` — 수정 지시를 큐에 추가 (최대 3개, 각각 영역 선택 가능)
+- [x] `handlePartialEdit()` 큐 순차 처리로 확장 — 이전 결과 이미지를 기반으로 다음 수정 실행
+- [x] UI: 큐 목록 표시 (번호 + 지시문 + 영역 아이콘 + 삭제 버튼) + "+ 추가" / "전체 적용" 버튼 분기
+- [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

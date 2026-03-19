@@ -21,6 +21,12 @@ import {
     Target,
 } from 'lucide-react';
 
+interface EditTask {
+    id: string;
+    instruction: string;
+    selection: OverlayRect | null;
+}
+
 interface SlideEditorProps {
     slides: Slide[];
     onUpdateSlide: (updatedSlide: Slide) => void;
@@ -46,16 +52,19 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
     const [editInstruction, setEditInstruction] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [editSelection, setEditSelection] = useState<OverlayRect | null>(null);
+    const [editQueue, setEditQueue] = useState<EditTask[]>([]);
+    const [processingIndex, setProcessingIndex] = useState(-1);
 
     const [localText, setLocalText] = useState('');
+    const prevIndexRef = useRef(-1);
+    const currentSlideRef = useRef(currentSlide);
+    currentSlideRef.current = currentSlide;
 
-    // 외부 파라미터(currentSlide) 변경 시 localText 동기화 (단, 사용자가 타이핑 중인 엔터 등은 보존)
+    // 슬라이드 전환 시에만 localText를 새 슬라이드 값으로 동기화
     useLayoutEffect(() => {
         if (!currentSlide) return;
-
-        const lines = localText.split('\n');
-        const localTitle = lines[0] || '';
-        const localBody = lines.slice(1).join('\n');
+        if (prevIndexRef.current === currentIndex) return; // 같은 슬라이드면 스킵 (사용자 타이핑 보존)
+        prevIndexRef.current = currentIndex;
 
         const parts: string[] = [];
         if (currentSlide.content && currentSlide.content.length > 0) {
@@ -70,11 +79,8 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
         }
         const slideBody = parts.join('\n\n');
 
-        // 사용자가 타이핑 중인 값과 실제 슬라이드 값이 다를 때만 덮어쓰기 (외부 변경, 슬라이드 전환 감지)
-        if (localTitle !== (currentSlide.slideTitle || '') || localBody !== slideBody) {
-            setLocalText(slideBody ? `${currentSlide.slideTitle || ''}\n${slideBody}` : (currentSlide.slideTitle || ''));
-        }
-    }, [currentSlide, localText]);
+        setLocalText(slideBody ? `${currentSlide.slideTitle || ''}\n${slideBody}` : (currentSlide.slideTitle || ''));
+    }, [currentIndex, currentSlide]);
 
     // 통합 텍스트 변경 핸들러: 첫 줄 = 제목, 나머지 = 본문 + content
     const handleCombinedTextChange = (value: string) => {
@@ -115,71 +121,101 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
         return canvas.toDataURL('image/png');
     };
 
-    // Partial Edit: 수정 지시 기반 이미지 수정 (영역 선택 지원)
+    // 큐에 수정 지시 추가 (최대 3개)
+    const handleAddToQueue = () => {
+        if (!editInstruction.trim() || editQueue.length >= 3) return;
+        setEditQueue(prev => [...prev, {
+            id: crypto.randomUUID(),
+            instruction: editInstruction.trim(),
+            selection: editSelection,
+        }]);
+        setEditInstruction('');
+        setEditSelection(null);
+    };
+
+    // Partial Edit: 수정 지시 큐 순차 처리 (영역 선택 지원)
     const handlePartialEdit = async () => {
-        if (isEditing || !currentSlide || !editInstruction.trim()) return;
+        // 큐가 비어있으면 현재 입력을 바로 실행 (기존 UX 유지)
+        const tasks = editQueue.length > 0
+            ? editQueue
+            : editInstruction.trim()
+                ? [{ id: 'single', instruction: editInstruction.trim(), selection: editSelection }]
+                : [];
+        if (tasks.length === 0 || isEditing || !currentSlide) return;
         setIsEditing(true);
 
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 180000);
+            let slide = currentSlideRef.current;
 
-            // 영역 선택이 있으면 마킹된 이미지 생성
-            let annotatedImageBase64: string | undefined;
-            if (editSelection && currentSlide.generatedImageUrl) {
-                try {
-                    annotatedImageBase64 = await annotateImage(currentSlide.generatedImageUrl, editSelection);
-                } catch (err) {
-                    console.warn('[Partial Edit] 이미지 마킹 실패, 원본으로 진행:', err);
+            for (let i = 0; i < tasks.length; i++) {
+                setProcessingIndex(i);
+                const task = tasks[i];
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+                // 영역 선택이 있으면 마킹된 이미지 생성
+                let annotatedImageBase64: string | undefined;
+                if (task.selection && slide.generatedImageUrl) {
+                    try {
+                        annotatedImageBase64 = await annotateImage(slide.generatedImageUrl, task.selection);
+                    } catch (err) {
+                        console.warn('[Partial Edit] 이미지 마킹 실패, 원본으로 진행:', err);
+                    }
                 }
-            }
 
-            const res = await fetch('/api/partial-edit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(geminiApiKey && { 'X-Gemini-Key': geminiApiKey }),
-                },
-                body: JSON.stringify({
-                    existingImageUrl: currentSlide.generatedImageUrl || '',
-                    instruction: editInstruction.trim(),
-                    slideTitle: currentSlide.slideTitle,
-                    bodyText: currentSlide.bodyText,
-                    bulletPoints: currentSlide.content,
-                    slideNumber: currentIndex + 1,
-                    totalSlides: slides.length,
-                    styleDescription: currentSlide.designStyle || '',
-                    referenceImagesBase64: styleReferenceImages,
-                    ...(annotatedImageBase64 && {
-                        annotatedImageBase64,
-                        hasSelectionArea: true,
+                const res = await fetch('/api/partial-edit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(geminiApiKey && { 'X-Gemini-Key': geminiApiKey }),
+                    },
+                    body: JSON.stringify({
+                        existingImageUrl: slide.generatedImageUrl || '',
+                        instruction: task.instruction,
+                        slideTitle: slide.slideTitle,
+                        bodyText: slide.bodyText,
+                        bulletPoints: slide.content,
+                        slideNumber: currentIndex + 1,
+                        totalSlides: slides.length,
+                        styleDescription: slide.designStyle || '',
+                        referenceImagesBase64: styleReferenceImages,
+                        ...(annotatedImageBase64 && {
+                            annotatedImageBase64,
+                            hasSelectionArea: true,
+                        }),
                     }),
-                }),
-                signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-                const data = await res.json();
-                const newUrl = `${data.imageUrl}?t=${Date.now()}`;
-                onUpdateSlide({
-                    ...currentSlide,
-                    generatedImageUrl: newUrl,
-                    generatedImageBase64: data.imageBase64,
-                    imageUrl: newUrl,
-                    textValidated: false,
-                    validationAttempts: 0,
+                    signal: controller.signal,
                 });
-                setEditInstruction('');
-                setEditSelection(null);
-                setEditMode(false);
-            } else {
-                console.error('[Partial Edit] API error:', res.status);
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const newUrl = `${data.imageUrl}?t=${Date.now()}`;
+                    slide = {
+                        ...slide,
+                        generatedImageUrl: newUrl,
+                        generatedImageBase64: data.imageBase64,
+                        imageUrl: newUrl,
+                        textValidated: false,
+                        validationAttempts: 0,
+                    };
+                    onUpdateSlide(slide);
+                    currentSlideRef.current = slide;
+                } else {
+                    console.error('[Partial Edit] API error:', res.status);
+                    break; // 실패 시 나머지 큐 중단
+                }
             }
         } catch (error) {
             console.error('[Partial Edit] Error:', error);
         } finally {
             setIsEditing(false);
+            setProcessingIndex(-1);
+            setEditQueue([]);
+            setEditInstruction('');
+            setEditSelection(null);
+            setEditMode(false);
         }
     };
 
@@ -213,8 +249,9 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
 
             if (res.ok) {
                 const data = await res.json();
+                const latestSlide = currentSlideRef.current;
                 onUpdateSlide({
-                    ...currentSlide,
+                    ...latestSlide,
                     generatedImageUrl: data.imageUrl,
                     generatedImageBase64: data.imageBase64,
                     imageUrl: data.imageUrl,
@@ -473,51 +510,100 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                                 수정 지시
                                             </label>
                                             <button
-                                                onClick={() => { setEditMode(false); setEditInstruction(''); setEditSelection(null); }}
-                                                className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
+                                                onClick={() => { setEditMode(false); setEditInstruction(''); setEditSelection(null); setEditQueue([]); }}
+                                                disabled={isEditing}
+                                                className="p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors disabled:opacity-30"
                                             >
                                                 <X size={14} />
                                             </button>
                                         </div>
-                                        {editSelection ? (
-                                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-[11px]">
-                                                <Target size={12} />
-                                                <span>영역이 선택됨 — 해당 영역에 대한 수정 지시를 입력하세요</span>
-                                                <button
-                                                    onClick={() => setEditSelection(null)}
-                                                    className="ml-auto p-0.5 rounded hover:bg-white/10 text-red-400"
-                                                >
-                                                    <X size={12} />
-                                                </button>
+
+                                        {/* 큐 목록 */}
+                                        {editQueue.length > 0 && (
+                                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                                {editQueue.map((task, idx) => (
+                                                    <div key={task.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                                                        <span className="text-[10px] bg-violet-600/40 px-1.5 py-0.5 rounded font-bold text-violet-200 shrink-0">{idx + 1}</span>
+                                                        <span className="text-[11px] text-slate-300 flex-1 truncate">{task.instruction}</span>
+                                                        {task.selection && <Target size={10} className="text-red-400 shrink-0" />}
+                                                        {processingIndex === idx && <Loader2 size={12} className="animate-spin text-violet-400 shrink-0" />}
+                                                        {processingIndex < 0 && (
+                                                            <button
+                                                                onClick={() => setEditQueue(q => q.filter((_, i) => i !== idx))}
+                                                                className="p-0.5 rounded hover:bg-white/10 shrink-0"
+                                                            >
+                                                                <X size={12} className="text-slate-500 hover:text-red-400" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ) : (
-                                            <p className="text-[10px] text-slate-500/70">
-                                                💡 오른쪽 이미지에서 수정할 영역을 드래그로 선택할 수 있습니다 (선택사항)
-                                            </p>
                                         )}
-                                        <textarea
-                                            value={editInstruction}
-                                            onChange={(e) => setEditInstruction(e.target.value)}
-                                            disabled={isEditing}
-                                            rows={3}
-                                            placeholder={editSelection
-                                                ? "예) 이 영역의 글씨를 깔끔한 고딕체로 다시 써줘, 글자 크기를 키워줘"
-                                                : "예) 제목을 '새 제목'으로 변경, 배경색을 파란색으로 변경"
-                                            }
-                                            className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none disabled:opacity-50"
-                                        />
-                                        <button
-                                            onClick={handlePartialEdit}
-                                            disabled={isEditing || !editInstruction.trim()}
-                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
-                                        >
-                                            {isEditing ? (
-                                                <Loader2 size={14} className="animate-spin" />
+
+                                        {/* 영역 선택 상태 */}
+                                        {!isEditing && (
+                                            editSelection ? (
+                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-[11px]">
+                                                    <Target size={12} />
+                                                    <span>영역이 선택됨 — 해당 영역에 대한 수정 지시를 입력하세요</span>
+                                                    <button
+                                                        onClick={() => setEditSelection(null)}
+                                                        className="ml-auto p-0.5 rounded hover:bg-white/10 text-red-400"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
                                             ) : (
-                                                <Send size={14} />
+                                                <p className="text-[10px] text-slate-500/70">
+                                                    오른쪽 이미지에서 수정할 영역을 드래그로 선택할 수 있습니다 (선택사항)
+                                                </p>
+                                            )
+                                        )}
+
+                                        {/* 텍스트 입력 */}
+                                        {!isEditing && (
+                                            <textarea
+                                                value={editInstruction}
+                                                onChange={(e) => setEditInstruction(e.target.value)}
+                                                rows={3}
+                                                placeholder={editSelection
+                                                    ? "예) 이 영역의 글씨를 깔끔한 고딕체로 다시 써줘, 글자 크기를 키워줘"
+                                                    : "예) 제목을 '새 제목'으로 변경, 배경색을 파란색으로 변경"
+                                                }
+                                                className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:border-violet-500/50 transition-all resize-none"
+                                            />
+                                        )}
+
+                                        {/* 버튼 영역 */}
+                                        <div className="flex gap-2">
+                                            {/* + 추가 버튼 */}
+                                            {!isEditing && editQueue.length < 3 && editInstruction.trim() && (
+                                                <button
+                                                    onClick={handleAddToQueue}
+                                                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all"
+                                                >
+                                                    + 추가 ({editQueue.length}/3)
+                                                </button>
                                             )}
-                                            {isEditing ? '수정 적용 중...' : '수정 적용'}
-                                        </button>
+
+                                            {/* 실행 버튼 */}
+                                            <button
+                                                onClick={handlePartialEdit}
+                                                disabled={isEditing || (editQueue.length === 0 && !editInstruction.trim())}
+                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                                            >
+                                                {isEditing ? (
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                ) : (
+                                                    <Send size={14} />
+                                                )}
+                                                {isEditing
+                                                    ? `수정 적용 중... (${processingIndex + 1}/${editQueue.length || 1})`
+                                                    : editQueue.length > 0
+                                                        ? `전체 적용 (${editQueue.length}건)`
+                                                        : '수정 적용'}
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <button
