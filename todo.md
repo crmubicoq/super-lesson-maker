@@ -298,6 +298,12 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.5.1 - 수정 큐 UX 개선
+- [x] "+추가" 버튼 항상 표시 (텍스트 없으면 disabled, 기존: 숨김)
+- [x] 가로 → 세로 레이아웃으로 버튼 가시성 향상
+- [x] "수정 지시" 라벨에 "최대 3건 일괄" 힌트 텍스트 추가
+- [x] 빌드 검증 통과
+
 ## [DONE] Milestone 7.5 - 초안 마크다운 다운로드
 - [x] `SlideContentPreview.tsx`: `slidesToMarkdown()` 변환 함수 추가 (제목/본문/불릿/블록/발표자 노트 → MD 형식)
 - [x] `SlideContentPreview.tsx`: `handleDownloadMarkdown()` Blob 다운로드 함수 추가
