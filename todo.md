@@ -298,6 +298,13 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.6 - 서버 환경변수 API 키 fallback 제거
+- [x] `aiProvider.ts`: `process.env.GEMINI_API_KEY` fallback 제거 → 헤더 키만 사용
+- [x] 6개 이미지 API 라우트: `ENV_GEMINI_API_KEY` 변수 및 fallback 제거
+- [x] 에러 메시지에 "상단 설정에서 API 키를 입력해주세요" 안내 추가
+- [x] `SettingsModal.tsx`: "비워두면 서버 환경변수 사용" → "필수 입력" 문구 변경
+- [x] 빌드 검증 통과
+
 ## [DONE] Milestone 7.5.1 - 수정 큐 UX 개선
 - [x] "+추가" 버튼 항상 표시 (텍스트 없으면 disabled, 기존: 숨김)
 - [x] 가로 → 세로 레이아웃으로 버튼 가시성 향상

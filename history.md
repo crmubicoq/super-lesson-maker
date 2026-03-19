@@ -1,4 +1,14 @@
 ## 📅 2026-03-19
+### [진행 내용]: 서버 환경변수 API 키 fallback 제거 (v7.6)
+- **[배경]**: GitHub에서 다운받은 사용자가 API 키를 입력하지 않아도 앱이 진행되는 문제. 서버의 `.env.local`에 `GEMINI_API_KEY`가 있으면 자동으로 사용되었기 때문.
+- **[수정 내용]**:
+  1. `aiProvider.ts`의 `getAIConfigFromHeaders()`에서 `process.env.GEMINI_API_KEY` fallback 제거
+  2. 6개 이미지 API 라우트(`generate-slide-image`, `partial-edit`, `validate-text`, `analyze-style`, `extract-pdf-ocr`, `ocr-analyze`)에서 `ENV_GEMINI_API_KEY` 변수 및 fallback 제거
+  3. 에러 메시지에 "상단 설정에서 API 키를 입력해주세요" 안내 추가
+  4. `SettingsModal`의 placeholder/안내 문구를 "필수 입력"으로 변경
+- **[핵심 원리]**: 배포용 앱에서는 각 사용자가 자신의 API 키를 UI 설정에서 직접 입력해야 함. 서버 환경변수 fallback은 개발 편의용이었으나 보안/사용성 문제로 제거.
+- **[빌드 검증]**: 통과
+
 ### [진행 내용]: 수정 큐 UX 개선 (v7.5.1)
 - **[배경]**: "+추가" 버튼이 텍스트 입력 시에만 나타나서 큐 기능의 존재를 모르고 지나치는 사용자 발생.
 - **[수정 내용]**:
