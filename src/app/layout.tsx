@@ -31,6 +31,7 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Jua&family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@400;700;900&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap"
           rel="stylesheet"
+          crossOrigin="anonymous"
         />
       </head>
       <body

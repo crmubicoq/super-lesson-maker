@@ -253,6 +253,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 pixelRatio: scale,
                 cacheBust: true,
                 style: { margin: '0' },
+                fontEmbedCSS: '',
             });
 
             // 캡처된 UI 이미지를 상태에 백업 저장 (PDF 내보내기에서 AI 이미지가 없을 경우 대체 사용하기 위함)
@@ -286,6 +287,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 pixelRatio: scale,
                 cacheBust: true,
                 style: { margin: '0' },
+                fontEmbedCSS: '',
             });
 
             const fileName = `slide_${String(currentIndex + 1).padStart(2, '0')}.png`;
