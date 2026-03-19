@@ -508,6 +508,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
                                                 <Wand2 size={14} className="text-violet-400" />
                                                 수정 지시
+                                                <span className="normal-case text-[10px] text-slate-500/70 font-normal tracking-normal">최대 3건 일괄</span>
                                             </label>
                                             <button
                                                 onClick={() => { setEditMode(false); setEditInstruction(''); setEditSelection(null); setEditQueue([]); }}
@@ -575,14 +576,15 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                         )}
 
                                         {/* 버튼 영역 */}
-                                        <div className="flex gap-2">
-                                            {/* + 추가 버튼 */}
-                                            {!isEditing && editQueue.length < 3 && editInstruction.trim() && (
+                                        <div className="space-y-2">
+                                            {/* + 큐에 추가 버튼 — 항상 표시 (큐 미만 3개일 때) */}
+                                            {!isEditing && editQueue.length < 3 && (
                                                 <button
                                                     onClick={handleAddToQueue}
-                                                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all"
+                                                    disabled={!editInstruction.trim()}
+                                                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 border border-dashed border-white/20 hover:bg-violet-500/10 hover:border-violet-500/30 text-slate-400 hover:text-violet-300 text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white/5 disabled:hover:border-white/20 disabled:hover:text-slate-400"
                                                 >
-                                                    + 추가 ({editQueue.length}/3)
+                                                    + 큐에 추가 ({editQueue.length}/3)
                                                 </button>
                                             )}
 
@@ -590,7 +592,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                             <button
                                                 onClick={handlePartialEdit}
                                                 disabled={isEditing || (editQueue.length === 0 && !editInstruction.trim())}
-                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
                                             >
                                                 {isEditing ? (
                                                     <Loader2 size={14} className="animate-spin" />
