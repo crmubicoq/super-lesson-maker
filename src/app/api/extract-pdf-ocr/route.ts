@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ENV_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-2.5-flash'; // Google의 최신 멀티모달 모델
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
@@ -8,10 +7,10 @@ const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
-    const GEMINI_API_KEY = req.headers.get('X-Gemini-Key') || ENV_GEMINI_API_KEY;
+    const GEMINI_API_KEY = req.headers.get('X-Gemini-Key') || '';
     if (!GEMINI_API_KEY) {
         return NextResponse.json(
-            { error: 'Gemini API 키가 설정되지 않았습니다.' },
+            { error: 'Gemini API 키가 설정되지 않았습니다. 상단 설정에서 API 키를 입력해주세요.' },
             { status: 500 }
         );
     }

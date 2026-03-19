@@ -114,10 +114,9 @@ async function callClaude(
 
 /**
  * 요청 헤더에서 AI 설정 추출 (API 라우트용)
- * fallback: process.env.GEMINI_API_KEY
  */
 export function getAIConfigFromHeaders(headers: Headers): AIConfig {
     const provider = (headers.get('X-AI-Provider') || 'gemini') as AIProvider;
-    const apiKey = headers.get('X-API-Key') || process.env.GEMINI_API_KEY || '';
+    const apiKey = headers.get('X-API-Key') || '';
     return { provider, apiKey };
 }

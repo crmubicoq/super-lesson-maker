@@ -131,7 +131,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                     type={showGeminiKey ? 'text' : 'password'}
                                     value={localConfig.geminiApiKey}
                                     onChange={(e) => setLocalConfig(prev => ({ ...prev, geminiApiKey: e.target.value }))}
-                                    placeholder="AIzaSy... (비워두면 서버 환경변수 사용)"
+                                    placeholder="AIzaSy... (필수 입력)"
                                     className="w-full px-4 py-3 pr-20 bg-slate-800/60 border border-white/15 rounded-xl text-sm text-white placeholder-slate-500 focus:border-blue-500/50 outline-none transition-all"
                                 />
                                 <button
@@ -142,7 +142,7 @@ export default function SettingsModal({ isOpen, onClose, config, onSave }: Setti
                                 </button>
                             </div>
                             <p className="mt-1 text-[10px] text-slate-500">
-                                슬라이드 이미지 생성에 필요합니다. 비워두면 서버의 .env.local 키를 사용합니다.
+                                슬라이드 이미지 생성에 필요합니다. 반드시 입력해주세요.
                             </p>
                         </div>
                     )}
