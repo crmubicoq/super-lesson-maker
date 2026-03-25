@@ -298,6 +298,13 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.7 - 슬라이드 이미지 텍스트 충실도 개선
+- [x] `generate-slide-image/route.ts`: `buildSlidePrompt()` 프롬프트 전면 강화
+  - 콘텐츠 섹션 VERBATIM 블록으로 변경 (따옴표로 원문 명시)
+  - 텍스트 체크리스트 섹션 추가 (이미지에 존재해야 할 텍스트 번호 매김)
+  - 절대 금지 사항 섹션 추가 (Content Drift 방지: 텍스트 추가/변경/요약 금지)
+- [x] 빌드 검증 통과
+
 ## [DONE] Milestone 7.6 - 서버 환경변수 API 키 fallback 제거
 - [x] `aiProvider.ts`: `process.env.GEMINI_API_KEY` fallback 제거 → 헤더 키만 사용
 - [x] 6개 이미지 API 라우트: `ENV_GEMINI_API_KEY` 변수 및 fallback 제거

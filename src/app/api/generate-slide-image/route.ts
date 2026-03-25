@@ -22,15 +22,25 @@ interface SlideImageRequest {
 }
 
 function buildSlidePrompt(req: SlideImageRequest): string {
-    let contentSection = `제목: ${req.slideTitle}`;
+    // VERBATIM 콘텐츠 섹션 구성 + 텍스트 체크리스트 생성
+    const checklist: string[] = [];
+    let contentSection = `[제목 — 반드시 이 문장 그대로 이미지에 표시]\n"${req.slideTitle}"`;
+    checklist.push(`제목: "${req.slideTitle}"`);
 
     if (req.bulletPoints && req.bulletPoints.length > 0) {
-        contentSection += '\n\n핵심 포인트:\n' + req.bulletPoints.map((p, i) => `${i + 1}. ${p}`).join('\n');
+        contentSection += '\n\n[핵심 포인트 — 아래 항목을 글자 그대로 표시, 변경/추가/생략 금지]';
+        req.bulletPoints.forEach((p, i) => {
+            contentSection += `\n${i + 1}. "${p}"`;
+            checklist.push(`항목${i + 1}: "${p}"`);
+        });
     }
 
     if (req.bodyText) {
-        contentSection += `\n\n본문: ${req.bodyText}`;
+        contentSection += `\n\n[본문 — 아래 텍스트를 글자 그대로 표시, 변경/추가/생략 금지]\n"${req.bodyText}"`;
+        checklist.push(`본문: "${req.bodyText.substring(0, 100)}${req.bodyText.length > 100 ? '...' : ''}"`);
     }
+
+    const checklistText = checklist.map((c, i) => `${i + 1}. ${c}`).join('\n');
 
     const isCover = req.slideNumber === 1;
 
@@ -54,11 +64,22 @@ ${req.styleDescription}
 
 이 교안의 전체적인 스타일을 모든 페이지 표면(배경, 색상, 레이아웃)에 일관되게 유지해야 합니다.
 
-## 페이지에 표시할 내용
+## [최우선 3] 페이지에 표시할 내용 (VERBATIM — 따옴표 안의 텍스트를 글자 그대로 이미지에 배치할 것)
 ${contentSection}
 
+## 텍스트 체크리스트 (이미지에 반드시 존재해야 할 텍스트 — 이 목록 외 추가 텍스트 삽입 금지)
+${checklistText}
+(위 목록에 없는 텍스트는 이미지에 절대 포함하지 마세요)
+
+## 절대 금지 사항 (Content Drift 방지)
+- 제공된 텍스트 외에 새로운 문장, 단어, 설명을 추가하지 마세요
+- 제공된 텍스트를 요약하거나 다른 표현으로 바꾸지 마세요
+- "예시", "참고", "기타", "등" 같은 텍스트를 임의로 삽입하지 마세요
+- 제공되지 않은 번호, 목차, 부제목을 만들어내지 마세요
+- 따옴표("") 안의 텍스트가 이미지에 들어갈 최종 텍스트입니다. 한 글자도 바꾸지 마세요
+
 ## 기술 요구사항
-1. **(제일 중요) 제공된 '페이지에 표시할 내용'의 텍스트 원본(특히 수치, 단어, 핵심 포인트)을 토씨 하나 틀리지 않고 100% 동일하게 이미지에 그려넣어야 합니다. AI가 임의로 내용을 지어내거나(Hallucination), 수정/요약하는 행위는 절대 금지됩니다.**
+1. **(제일 중요) 위 따옴표 안의 텍스트 원본을 토씨 하나 틀리지 않고 100% 동일하게 이미지에 그려넣어야 합니다. AI가 임의로 내용을 지어내거나(Hallucination), 수정/요약하는 행위는 절대 금지됩니다.**
 ${isCover ? `2. **[표지 슬라이드 특별 규칙] 이 페이지는 강의의 첫 번째 표지(Cover) 슬라이드입니다. 따라서 본문이나 글머리 기호를 절대 임의로 지어내서 그려넣지 마세요. 오직 제공된 제목만 중앙에 아주 크게, 임팩트 있게 배치하세요.**` : `2. 배경색/패턴이 이미지 가장자리까지 꽉 차는 교안 페이지 (검은 여백 금지)`}
 3. 모든 텍스트는 한국어로 정확하게 렌더링 (오탈자 없이)
 4. 텍스트는 읽기 쉬운 크기, 배경과의 대비 확보
@@ -87,7 +108,7 @@ export async function POST(request: NextRequest) {
         const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
         if (body.referenceImagesBase64 && Array.isArray(body.referenceImagesBase64) && body.referenceImagesBase64.length > 0) {
-            body.referenceImagesBase64.forEach((imgBase64, idx) => {
+            body.referenceImagesBase64.forEach((imgBase64) => {
                 if (!imgBase64) return;
                 const raw = imgBase64.replace(/^data:image\/\w+;base64,/, '');
                 parts.push({
