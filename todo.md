@@ -298,6 +298,13 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.8 - 이미지 재생성 시 사용자 지시 입력
+- [x] `SlideEditor.tsx`: `regenerateInstruction` state 추가 + 재생성 버튼 옆 입력란 UI
+- [x] `SlideEditor.tsx`: `handleRegenerate`에서 `customInstruction` 파라미터 전달
+- [x] `generate-slide-image/route.ts`: `SlideImageRequest`에 `customInstruction` 필드 추가
+- [x] `generate-slide-image/route.ts`: `buildSlidePrompt()`에 "사용자 추가 지시" 섹션 조건부 추가
+- [x] 빌드 검증 통과
+
 ## [DONE] Milestone 7.7 - 슬라이드 이미지 텍스트 충실도 개선
 - [x] `generate-slide-image/route.ts`: `buildSlidePrompt()` 프롬프트 전면 강화
   - 콘텐츠 섹션 VERBATIM 블록으로 변경 (따옴표로 원문 명시)

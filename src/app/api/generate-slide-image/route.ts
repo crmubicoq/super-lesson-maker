@@ -19,6 +19,7 @@ interface SlideImageRequest {
     totalSlides: number;
     styleDescription: string;
     referenceImagesBase64?: string[]; // 스타일 참고 이미지 (다중)
+    customInstruction?: string; // 사용자 재생성 지시 (선택)
 }
 
 function buildSlidePrompt(req: SlideImageRequest): string {
@@ -91,7 +92,10 @@ ${isCover ? `2. **[표지 슬라이드 특별 규칙] 이 페이지는 강의의
 - "전문적이고 깔끔한" 같은 일반적 디자인으로 대체하지 마세요
 - 이전/이후 페이지와 시각적 일관성을 유지하세요
 ${isCover ? `- **표지이므로 제목을 화면 정중앙이나 시선이 집중되는 곳에 매우 크고 아름답게 배치하세요.**` : `- 제목을 상단에, 본문 콘텐츠를 넉넉한 공간에 배치하세요`}
-- **절대로 이미지 가장자리에 검은색/어두운 테두리나 빈 공간을 넣지 마세요**`;
+- **절대로 이미지 가장자리에 검은색/어두운 테두리나 빈 공간을 넣지 마세요**${req.customInstruction ? `
+
+## 사용자 추가 지시 (디자인/형식 관련 — 콘텐츠 원문은 변경 금지)
+${req.customInstruction}` : ''}`;
 }
 
 export async function POST(request: NextRequest) {

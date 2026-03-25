@@ -54,6 +54,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
     const [editSelection, setEditSelection] = useState<OverlayRect | null>(null);
     const [editQueue, setEditQueue] = useState<EditTask[]>([]);
     const [processingIndex, setProcessingIndex] = useState(-1);
+    const [regenerateInstruction, setRegenerateInstruction] = useState('');
 
     const [localText, setLocalText] = useState('');
     const prevIndexRef = useRef(-1);
@@ -242,6 +243,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                     totalSlides: slides.length,
                     styleDescription: currentSlide.designStyle || '',
                     referenceImagesBase64: styleReferenceImages,
+                    ...(regenerateInstruction.trim() && { customInstruction: regenerateInstruction.trim() }),
                 }),
                 signal: controller.signal,
             });
@@ -675,11 +677,20 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
 
                     {/* 프리뷰 하단 액션 바 */}
                     <div className="mt-4 w-full flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={regenerateInstruction}
+                                onChange={(e) => setRegenerateInstruction(e.target.value)}
+                                placeholder="재생성 지시 (선택) 예) 명사형 종결, 배경 파란색"
+                                disabled={isRegenerating}
+                                className="flex-1 min-w-0 px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500/50 transition-all disabled:opacity-50"
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !isRegenerating) handleRegenerate(); }}
+                            />
                             <button
                                 onClick={handleRegenerate}
                                 disabled={isRegenerating}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-all active:scale-95 shadow-lg shadow-violet-500/20 disabled:opacity-50 shrink-0"
                             >
                                 {isRegenerating ? (
                                     <Loader2 size={14} className="animate-spin" />
