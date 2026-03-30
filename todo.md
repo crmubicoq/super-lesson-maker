@@ -298,6 +298,12 @@
 - [x] 큐 없이 바로 "수정 적용"도 기존과 동일하게 동작 (하위 호환)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 7.9 - contentBlocks 누락으로 제목만 렌더링되던 버그 수정
+- [x] `buildEffectiveBodyText()` 헬퍼 함수 추가 — `bodyText` + `contentBlocks`를 하나의 텍스트로 병합
+- [x] `SlideEditor.tsx` `handleRegenerate`: `buildEffectiveBodyText()` 적용
+- [x] `slideImageGenerator.ts` 두 곳 (`generateFromText`, `generateImagesForSlides`): `buildEffectiveBodyText()` 적용
+- [x] 빌드 검증 통과
+
 ## [DONE] Milestone 7.8 - 이미지 재생성 시 사용자 지시 입력
 - [x] `SlideEditor.tsx`: `regenerateInstruction` state 추가 + 재생성 버튼 옆 입력란 UI
 - [x] `SlideEditor.tsx`: `handleRegenerate`에서 `customInstruction` 파라미터 전달

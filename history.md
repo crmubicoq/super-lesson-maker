@@ -1,4 +1,13 @@
 ## 📅 2026-03-19
+### [진행 내용]: contentBlocks 누락 버그 수정 (v7.9)
+- **[배경]**: 일부 슬라이드에서 제목만 표시되고 본문 내용이 이미지에 안 나타나는 버그 발견.
+- **[원인]**: `Slide` 타입의 `contentBlocks` 필드(grid 레이아웃용 구조화 콘텐츠)가 이미지 생성 API 요청에 포함되지 않았음. 좌측 패널에는 `contentBlocks`까지 표시되지만, 이미지 생성 시 `content`(bulletPoints)와 `bodyText`만 전달 → `contentBlocks`만 있는 슬라이드는 제목만 전달되어 제목만 렌더링.
+- **[수정 내용]**:
+  1. `buildEffectiveBodyText(bodyText, contentBlocks)` 헬퍼 추가: `bodyText`와 `contentBlocks`를 하나의 문자열로 병합
+  2. `SlideEditor.tsx` `handleRegenerate`, `slideImageGenerator.ts` 2곳에 적용
+- **[수정 파일]**: `src/components/SlideEditor.tsx`, `src/utils/slideImageGenerator.ts`
+- **[빌드 검증]**: 통과
+
 ### [진행 내용]: 이미지 재생성 시 사용자 지시 입력 (v7.8)
 - **[배경]**: 이미지 재생성 시 "모든 문장을 명사형으로 종결해줘", "배경색을 파란색으로" 같은 사용자 지시를 전달할 방법이 없었음.
 - **[수정 내용]**:
