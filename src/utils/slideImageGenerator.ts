@@ -1,7 +1,16 @@
 import {
     Slide, SlideContent, StyleProfile, PipelineProgress, PipelineStage,
-    StructuredSlideContent,
+    StructuredSlideContent, ContentBlock,
 } from '@/types/slide';
+
+// contentBlocks를 bodyText에 병합 (이미지 생성 시 누락 방지)
+function buildEffectiveBodyText(bodyText?: string, contentBlocks?: ContentBlock[]): string | undefined {
+    const blockText = contentBlocks?.length
+        ? contentBlocks.map(b => `${b.subtitle}: ${b.body}`).join('\n')
+        : '';
+    const combined = [bodyText, blockText].filter(Boolean).join('\n\n');
+    return combined || undefined;
+}
 import { SplitResult } from './pdfProcessor';
 import { AIService } from './aiService';
 
@@ -187,7 +196,7 @@ export class SlideImageGenerator {
                     },
                     body: JSON.stringify({
                         slideTitle: slide.slideTitle,
-                        bodyText: slide.bodyText,
+                        bodyText: buildEffectiveBodyText(slide.bodyText, slide.contentBlocks),
                         bulletPoints: slide.content,
                         slideNumber: idx + 1,
                         totalSlides: total,
@@ -349,7 +358,7 @@ export class SlideImageGenerator {
                     },
                     body: JSON.stringify({
                         slideTitle: slide.slideTitle,
-                        bodyText: slide.bodyText,
+                        bodyText: buildEffectiveBodyText(slide.bodyText, slide.contentBlocks),
                         bulletPoints: slide.content,
                         slideNumber: idx + 1,
                         totalSlides: total,

@@ -27,6 +27,15 @@ interface EditTask {
     selection: OverlayRect | null;
 }
 
+// contentBlocks를 bodyText에 병합 (이미지 생성 시 누락 방지)
+function buildEffectiveBodyText(bodyText?: string, contentBlocks?: import('@/types/slide').ContentBlock[]): string | undefined {
+    const blockText = contentBlocks?.length
+        ? contentBlocks.map(b => `${b.subtitle}: ${b.body}`).join('\n')
+        : '';
+    const combined = [bodyText, blockText].filter(Boolean).join('\n\n');
+    return combined || undefined;
+}
+
 interface SlideEditorProps {
     slides: Slide[];
     onUpdateSlide: (updatedSlide: Slide) => void;
@@ -237,7 +246,7 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 },
                 body: JSON.stringify({
                     slideTitle: currentSlide.slideTitle,
-                    bodyText: currentSlide.bodyText,
+                    bodyText: buildEffectiveBodyText(currentSlide.bodyText, currentSlide.contentBlocks),
                     bulletPoints: currentSlide.content,
                     slideNumber: currentIndex + 1,
                     totalSlides: slides.length,
