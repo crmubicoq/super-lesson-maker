@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Slide } from '@/types/slide';
-import { Edit3, Check, ArrowRight, ArrowLeft, FileText, Layers, Download } from 'lucide-react';
+import { Edit3, Check, ArrowRight, ArrowLeft, FileText, Layers, Download, ChevronRight, ChevronDown } from 'lucide-react';
 
 interface SlideContentPreviewProps {
     slides: Slide[];
@@ -10,11 +10,32 @@ interface SlideContentPreviewProps {
     onRegenerate?: (targetCount: number) => void;
 }
 
+const layoutLabels: Record<string, string> = {
+    cover: '표지',
+    title_body: '본문',
+    bullet_list: '불릿',
+    grid_2x2: '2×2 그리드',
+    grid_1x3: '1×3 그리드',
+    content_image: '이미지+텍스트',
+    section_divider: '섹션 구분',
+};
+
 export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, onBack, onRegenerate }: SlideContentPreviewProps) {
     const [editingSlideId, setEditingSlideId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState('');
     const [editBody, setEditBody] = useState('');
+    const [editNotes, setEditNotes] = useState('');
+    const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
     const [targetCount, setTargetCount] = useState<number | string>(slides.length);
+
+    const toggleNotes = (id: string) => {
+        setExpandedNotes(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
     const slidesToMarkdown = (): string => {
         const coverSlide = slides.find(s => s.slideRole === 'cover');
@@ -57,7 +78,6 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
         setEditingSlideId(slide.id);
         setEditTitle(slide.slideTitle);
         let slideBody = slide.bodyText || '';
-        // bodyText가 비어있을 경우 (주로 목차 단계의 bulletPoints 또는 그리드형 contentBlocks 데이터) 복원
         if (!slideBody) {
             const parts: string[] = [];
             if (slide.content && slide.content.length > 0) {
@@ -70,6 +90,7 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
             slideBody = parts.join('\n\n');
         }
         setEditBody(slideBody);
+        setEditNotes(slide.speakerNotes || '');
     };
 
     const saveEdit = (slide: Slide) => {
@@ -78,7 +99,8 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
             slideTitle: editTitle,
             bodyText: editBody,
             content: [],
-            contentBlocks: []
+            contentBlocks: [],
+            speakerNotes: editNotes,
         });
         setEditingSlideId(null);
     };
@@ -92,9 +114,9 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                         <Layers size={24} />
                     </div>
                     <div>
-                        <h3 className="text-2xl font-bold text-white">슬라이드 콘텐츠 미리보기</h3>
+                        <h3 className="text-2xl font-bold text-white">슬라이드 초안</h3>
                         <p className="text-xs text-slate-500 mt-1">
-                            총 {slides.length}장의 슬라이드가 생성됩니다. 내용을 확인하고 수정한 후 이미지를 생성하세요.
+                            총 {slides.length}장의 슬라이드 초안입니다. 내용을 확인하고 수정한 후 이미지를 생성하세요.
                         </p>
                     </div>
                 </div>
@@ -136,14 +158,13 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                                 value={targetCount}
                                 onChange={(e) => {
                                     if (e.target.value === '') {
-                                        setTargetCount(''); // 빈칸 허용
+                                        setTargetCount('');
                                     } else {
                                         const val = parseInt(e.target.value);
-                                        if (!isNaN(val)) setTargetCount(val); // 타이핑 중 보정하지 않음 (1 -> 15 연속입력 보장)
+                                        if (!isNaN(val)) setTargetCount(val);
                                     }
                                 }}
                                 onBlur={() => {
-                                    // 포커스를 잃을 때 최종 보정
                                     let val = Number(targetCount);
                                     if (!val || val < 5) val = 5;
                                     if (val > 50) val = 50;
@@ -178,41 +199,73 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                 </div>
             )}
 
-            {/* 슬라이드 플랫 리스트 */}
-            <div className="rounded-2xl glass-card border-white/10 overflow-hidden mb-10">
+            {/* 슬라이드 카드 리스트 */}
+            <div className="space-y-3 mb-10">
                 {slides.map((slide, idx) => {
                     const isEditing = editingSlideId === slide.id;
+                    const notesExpanded = expandedNotes.has(slide.id);
+                    const layoutLabel = layoutLabels[slide.layout] || slide.layout;
+                    const hasNotes = !!slide.speakerNotes;
 
                     return (
                         <div
                             key={slide.id}
-                            className={`flex gap-4 p-5 border-t border-white/10 first:border-t-0 group transition-colors ${isEditing ? 'bg-indigo-500/5' : 'hover:bg-white/[0.02]'
-                                }`}
+                            className={`rounded-2xl border transition-colors ${isEditing ? 'bg-indigo-500/5 border-indigo-500/30' : 'bg-white/[0.03] border-white/10 hover:border-white/20'}`}
                         >
-                            {/* 슬라이드 번호 */}
-                            <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-400 border border-white/15 flex-shrink-0 mt-0.5">
-                                {idx + 1}
+                            {/* 카드 헤더 */}
+                            <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                                <div className="w-7 h-7 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 border border-white/15 flex-shrink-0">
+                                    {idx + 1}
+                                </div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                    {layoutLabel}
+                                </span>
+                                {!isEditing && (
+                                    <button
+                                        onClick={() => startEdit(slide)}
+                                        className="ml-auto p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-indigo-400 transition-colors"
+                                        title="슬라이드 편집"
+                                    >
+                                        <Edit3 size={15} />
+                                    </button>
+                                )}
                             </div>
 
-                            {/* 슬라이드 내용 */}
-                            <div className="flex-1 min-w-0">
+                            {/* 카드 본문 */}
+                            <div className="px-5 py-4">
                                 {isEditing ? (
                                     <div className="space-y-3">
-                                        <input
-                                            autoFocus
-                                            value={editTitle}
-                                            onChange={(e) => setEditTitle(e.target.value)}
-                                            className="w-full bg-slate-700/60 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white font-bold outline-none focus:ring-1 focus:ring-indigo-500/50"
-                                            placeholder="슬라이드 제목"
-                                        />
-                                        <textarea
-                                            value={editBody}
-                                            onChange={(e) => setEditBody(e.target.value)}
-                                            rows={4}
-                                            className="w-full bg-slate-700/60 border border-white/15 rounded-lg px-3 py-2 text-xs text-slate-300 outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
-                                            placeholder="본문 내용 (줄바꿈으로 구분)"
-                                        />
-                                        <div className="flex gap-2">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">제목</p>
+                                            <input
+                                                autoFocus
+                                                value={editTitle}
+                                                onChange={(e) => setEditTitle(e.target.value)}
+                                                className="w-full bg-slate-700/60 border border-indigo-500/50 rounded-lg px-3 py-2 text-sm text-white font-bold outline-none focus:ring-1 focus:ring-indigo-500/50"
+                                                placeholder="슬라이드 제목"
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">화면 텍스트</p>
+                                            <textarea
+                                                value={editBody}
+                                                onChange={(e) => setEditBody(e.target.value)}
+                                                rows={4}
+                                                className="w-full bg-slate-700/60 border border-white/15 rounded-lg px-3 py-2 text-sm text-slate-300 outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
+                                                placeholder="본문 내용 (줄바꿈으로 구분)"
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">강의 대본</p>
+                                            <textarea
+                                                value={editNotes}
+                                                onChange={(e) => setEditNotes(e.target.value)}
+                                                rows={3}
+                                                className="w-full bg-slate-700/60 border border-white/15 rounded-lg px-3 py-2 text-sm text-slate-400 outline-none focus:border-indigo-500/50 resize-none leading-relaxed"
+                                                placeholder="강사 발표 대본 (구어체)"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 pt-1">
                                             <button
                                                 onClick={() => saveEdit(slide)}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition-colors"
@@ -229,57 +282,60 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                                     </div>
                                 ) : (
                                     <>
-                                        <h5 className="text-white font-bold text-sm mb-1.5">{slide.slideTitle}</h5>
-                                        {slide.bodyText && (
-                                            <p className="text-xs text-slate-400 leading-relaxed mb-1.5 whitespace-pre-wrap">
-                                                {slide.bodyText.length > 200
-                                                    ? slide.bodyText.substring(0, 200) + '...'
-                                                    : slide.bodyText}
-                                            </p>
-                                        )}
-                                        {slide.content?.length > 0 && !slide.bodyText && (
-                                            <ul className="space-y-1 mb-2">
-                                                {slide.content.slice(0, 5).map((point, pIdx) => (
-                                                    <li key={pIdx} className="flex items-start gap-2 text-xs text-slate-400">
-                                                        <span className="text-indigo-500 mt-0.5">•</span>
-                                                        <span className="leading-relaxed">
-                                                            {point.length > 100 ? point.substring(0, 100) + '...' : point}
-                                                        </span>
-                                                    </li>
-                                                ))}
-                                                {slide.content.length > 5 && (
-                                                    <li className="text-xs text-slate-500 pl-4">
-                                                        +{slide.content.length - 5}개 더...
-                                                    </li>
+                                        {/* 화면 텍스트 섹션 */}
+                                        <div className="mb-1">
+                                            <p className="text-[10px] uppercase tracking-wider text-white/35 mb-2">화면 텍스트</p>
+                                            <h5 className="text-white font-bold text-base mb-2 leading-snug">{slide.slideTitle}</h5>
+                                            {slide.bodyText && (
+                                                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
+                                                    {slide.bodyText}
+                                                </p>
+                                            )}
+                                            {slide.content?.length > 0 && !slide.bodyText && (
+                                                <ul className="space-y-1.5">
+                                                    {slide.content.map((point, pIdx) => (
+                                                        <li key={pIdx} className="flex items-start gap-2 text-sm text-slate-200">
+                                                            <span className="text-indigo-400 mt-0.5 flex-shrink-0">•</span>
+                                                            <span className="leading-relaxed">{point}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                            {slide.contentBlocks && slide.contentBlocks.length > 0 && (
+                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                    {slide.contentBlocks.map((block, bIdx) => (
+                                                        <div key={bIdx} className="bg-white/5 p-3 rounded-lg border border-white/10">
+                                                            <p className="text-xs font-bold text-indigo-300 mb-1">{block.subtitle}</p>
+                                                            <p className="text-xs text-slate-300 leading-relaxed">{block.body}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 강의 대본 섹션 (접기/펼치기) */}
+                                        {hasNotes && (
+                                            <div className="border-t border-white/[0.06] pt-3 mt-3">
+                                                <button
+                                                    onClick={() => toggleNotes(slide.id)}
+                                                    className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-white/40 hover:text-white/60 transition-colors"
+                                                >
+                                                    {notesExpanded
+                                                        ? <ChevronDown size={12} />
+                                                        : <ChevronRight size={12} />
+                                                    }
+                                                    강의 대본
+                                                </button>
+                                                {notesExpanded && (
+                                                    <p className="mt-2 text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">
+                                                        {slide.speakerNotes}
+                                                    </p>
                                                 )}
-                                            </ul>
-                                        )}
-                                        {slide.contentBlocks && slide.contentBlocks.length > 0 && (
-                                            <div className="grid grid-cols-2 gap-2 mt-2">
-                                                {slide.contentBlocks.map((block, bIdx) => (
-                                                    <div key={bIdx} className="bg-white/5 p-2 rounded border border-white/10">
-                                                        <p className="text-xs font-bold text-indigo-300 mb-1">{block.subtitle}</p>
-                                                        <p className="text-[10px] text-slate-400 leading-relaxed">{block.body}</p>
-                                                    </div>
-                                                ))}
                                             </div>
                                         )}
                                     </>
                                 )}
                             </div>
-
-                            {/* 편집 버튼 */}
-                            {
-                                !isEditing && (
-                                    <button
-                                        onClick={() => startEdit(slide)}
-                                        className="p-2 rounded-lg hover:bg-white/5 text-slate-500 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                                        title="슬라이드 편집"
-                                    >
-                                        <Edit3 size={16} />
-                                    </button>
-                                )
-                            }
                         </div>
                     );
                 })}
@@ -302,6 +358,6 @@ export default function SlideContentPreview({ slides, onUpdateSlide, onConfirm, 
                     <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
             </div>
-        </div >
+        </div>
     );
 }

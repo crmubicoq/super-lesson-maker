@@ -338,6 +338,22 @@
 - [x] `.gitattributes`: `*.bat -text` 설정 추가 (GitHub ZIP 다운로드 시 CRLF 보존)
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 8.1 - 슬라이드 내용 요약 기능
+- [x] `src/app/api/summarize-slide/route.ts` 신규 생성 — Gemini/Claude로 슬라이드 텍스트를 이미지 적합 분량으로 압축
+- [x] `SlideEditor.tsx`: `aiProvider`/`aiApiKey` props 추가, `isSummarizing` state, `handleSummarize()` 핸들러
+- [x] `SlideEditor.tsx`: 좌측 패널 라벨에 "내용 요약" 버튼 (Scissors 아이콘, 연두색)
+- [x] `page.tsx`: `aiProvider={aiConfig.provider}` + `aiApiKey={aiConfig.apiKey}` props 전달 추가
+- [x] 요약 후 `handleCombinedTextChange()` 재사용 → textarea 즉시 반영
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 8.0 - 디자인 템플릿 라이브러리
+- [x] `src/utils/designTemplates.ts` 신규 생성 — `DesignTemplate` 인터페이스 + 8개 프리셋 (미니멀 화이트, 다크 코퍼레이트, 블루 프로페셔널, 컬러풀 에듀케이션, 엘레강트 베이지, 테크 그라데이션, 그린 클린, 직접 입력)
+- [x] `page.tsx`: `selectedTemplateId` state 추가 + `handleSelectTemplate()` 핸들러 추가
+- [x] `configure_visual` UI: "디자인 템플릿 선택" 카드 그리드 (3열) + textarea 레이블 변경
+- [x] 템플릿 선택 시 해당 prompt를 `userStyle` textarea에 자동 채움 (직접 수정 가능)
+- [x] 기존 analyzeStyle → StyleProfile 파이프라인 변경 없음
+- [x] 빌드 검증 통과
+
 ## [LATER] Milestone 7 - 기능 고도화
 - [ ] GSAP Animation Module: 애니메이션 프리셋(Fade, Zoom) 로직 구현
 - [ ] Exporter Engine: 내보내기 기능

@@ -41,6 +41,8 @@ export interface Slide {
     generatedImageUrl?: string;     // 최종 생성된 슬라이드 이미지 경로
     generatedImageBase64?: string;  // 최종 생성된 슬라이드의 순수 Base64 데이터 (로컬 내보내기용)
     finalCapturedBase64?: string;   // 화면에서 캡처된 UI 기반 최종 Base64 데이터 (PDF 포함용)
+    previousImageUrl?: string;      // 재생성 직전 이미지 URL (되돌리기용)
+    previousImageBase64?: string;   // 재생성 직전 이미지 base64 (되돌리기용)
     textValidated?: boolean;        // 텍스트 검증 통과 여부
     validationIssues?: string[];    // 발견된 텍스트 불일치 문제점들
     validationAttempts?: number;    // 검증 시도 횟수

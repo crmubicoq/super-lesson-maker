@@ -13,6 +13,7 @@ interface GenerateOptions {
     temperature?: number;
     jsonMode?: boolean;
     signal?: AbortSignal;
+    model?: string;
 }
 
 /**
@@ -39,7 +40,7 @@ async function callGemini(
     prompt: string,
     options?: GenerateOptions
 ): Promise<string> {
-    const model = 'gemini-2.5-flash';
+    const model = options?.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
     const response = await fetch(url, {
@@ -76,7 +77,7 @@ async function callClaude(
     prompt: string,
     options?: GenerateOptions
 ): Promise<string> {
-    const model = 'claude-sonnet-4-6';
+    const model = options?.model || 'claude-sonnet-4-6';
 
     // Claude는 JSON 모드가 없으므로 프롬프트에 지시 추가
     const finalPrompt = options?.jsonMode

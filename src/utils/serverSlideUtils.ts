@@ -109,9 +109,15 @@ export function buildBatchPrompt(
     sectionTitle: string,
     slidesPerSection: number,
     userStyle: string,
-    template: string = 'lecture'
+    template: string = 'lecture',
+    targetAudience?: string,
+    presentationObjective?: string
 ): string {
     const templateStructure = getTemplateStructure(template, slidesPerSection);
+    const contextBlock = [
+        targetAudience ? `## 타겟 청중\n${targetAudience}` : '',
+        presentationObjective ? `## 발표 목적\n${presentationObjective}` : '',
+    ].filter(Boolean).join('\n\n');
 
     return `당신은 사용자가 제공한 문서만을 완벽하게 숙지하고 분석하는 엄격한 AI 연구 보조원(NotebookLM 스타일)이자 프레젠테이션 설계자입니다.
 아래는 원고 텍스트 원본과, 이미 앞서 구조 분석을 통해 확정된 '슬라이드 초안(메타데이터)' 배열입니다.
@@ -124,9 +130,9 @@ ${userStyle || '전문적이고 깔끔한 디자인'}
 
 ## 관련 챕터(섹션) 제목
 ${sectionTitle}
-
+${contextBlock ? '\n' + contextBlock + '\n' : ''}
 ## 원고 텍스트
-${rawText ? rawText.substring(0, 8000) : `(원고 내용이 비어있습니다. 제목만으로 내용을 절대로 창작하지 마시고, 내용 없음으로 처리하세요.)`}
+${rawText || `(원고 내용이 비어있습니다. 제목만으로 내용을 절대로 창작하지 마시고, 내용 없음으로 처리하세요.)`}
 
 ## 슬라이드 수
 정확히 ${slidesPerSection}장을 생성하세요.
@@ -287,7 +293,9 @@ export async function generateSlidesFromPrompt(
     slidesPerSection: number,
     userStyle: string,
     template: string,
-    config: AIConfig
+    config: AIConfig,
+    targetAudience?: string,
+    presentationObjective?: string
 ): Promise<SlideContent[]> {
     // Progressive Summarization
     let processedText = rawText || '';
@@ -295,7 +303,7 @@ export async function generateSlidesFromPrompt(
         processedText = await extractKeyPoints(processedText, sectionTitle, config);
     }
 
-    const prompt = buildBatchPrompt(processedText, sectionTitle, slidesPerSection, userStyle, template);
+    const prompt = buildBatchPrompt(processedText, sectionTitle, slidesPerSection, userStyle, template, targetAudience, presentationObjective);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 280000); // 4분 40초

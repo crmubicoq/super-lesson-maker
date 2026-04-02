@@ -19,6 +19,9 @@ import {
     X,
     Save,
     Target,
+    Scissors,
+    Undo2,
+    Lock,
 } from 'lucide-react';
 
 interface EditTask {
@@ -45,11 +48,13 @@ interface SlideEditorProps {
     onDeleteSlide?: (index: number) => void;
     styleReferenceImages?: string[];
     geminiApiKey?: string;
+    aiProvider?: string;
+    aiApiKey?: string;
     onSaveProject?: () => void;
     saveMessage?: string | null;
 }
 
-export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack, onAddSlide, onDeleteSlide, styleReferenceImages, geminiApiKey, onSaveProject, saveMessage }: SlideEditorProps) {
+export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack, onAddSlide, onDeleteSlide, styleReferenceImages, geminiApiKey, aiProvider, aiApiKey, onSaveProject, saveMessage }: SlideEditorProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const currentSlide = slides[currentIndex];
     const slideRef = useRef<HTMLDivElement>(null);
@@ -64,6 +69,8 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
     const [editQueue, setEditQueue] = useState<EditTask[]>([]);
     const [processingIndex, setProcessingIndex] = useState(-1);
     const [regenerateInstruction, setRegenerateInstruction] = useState('');
+    const [isSummarizing, setIsSummarizing] = useState(false);
+    const [useStyleLock, setUseStyleLock] = useState(false);
 
     const [localText, setLocalText] = useState('');
     const prevIndexRef = useRef(-1);
@@ -238,6 +245,14 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 180000); // 3분
 
+            // 스타일 고정 시: 현재 이미지를 스타일 참조로 추가
+            const effectiveReferenceImages = (useStyleLock && currentSlide.generatedImageBase64)
+                ? [currentSlide.generatedImageBase64, ...(styleReferenceImages || [])]
+                : styleReferenceImages;
+            const effectiveInstruction = useStyleLock
+                ? `[스타일 유지] 이전 이미지의 레이아웃과 색상 구성을 그대로 유지하면서 텍스트 내용만 업데이트하세요. ${regenerateInstruction.trim()}`
+                : regenerateInstruction.trim();
+
             const res = await fetch('/api/generate-slide-image', {
                 method: 'POST',
                 headers: {
@@ -251,8 +266,8 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                     slideNumber: currentIndex + 1,
                     totalSlides: slides.length,
                     styleDescription: currentSlide.designStyle || '',
-                    referenceImagesBase64: styleReferenceImages,
-                    ...(regenerateInstruction.trim() && { customInstruction: regenerateInstruction.trim() }),
+                    referenceImagesBase64: effectiveReferenceImages,
+                    ...(effectiveInstruction && { customInstruction: effectiveInstruction }),
                 }),
                 signal: controller.signal,
             });
@@ -263,6 +278,8 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 const latestSlide = currentSlideRef.current;
                 onUpdateSlide({
                     ...latestSlide,
+                    previousImageUrl: latestSlide.generatedImageUrl,
+                    previousImageBase64: latestSlide.generatedImageBase64,
                     generatedImageUrl: data.imageUrl,
                     generatedImageBase64: data.imageBase64,
                     imageUrl: data.imageUrl,
@@ -276,6 +293,57 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
             console.error('[Regenerate] Error:', error);
         } finally {
             setIsRegenerating(false);
+        }
+    };
+
+    // 이전 이미지로 되돌리기
+    const handleRevertImage = () => {
+        if (!currentSlide?.previousImageUrl) return;
+        onUpdateSlide({
+            ...currentSlide,
+            generatedImageUrl: currentSlide.previousImageUrl,
+            generatedImageBase64: currentSlide.previousImageBase64,
+            imageUrl: currentSlide.previousImageUrl,
+            previousImageUrl: undefined,
+            previousImageBase64: undefined,
+        });
+    };
+
+    // 슬라이드 내용 AI 요약
+    const handleSummarize = async () => {
+        if (isSummarizing || !currentSlide) return;
+        setIsSummarizing(true);
+        try {
+            const res = await fetch('/api/summarize-slide', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AI-Provider': aiProvider || 'gemini',
+                    'X-API-Key': aiApiKey || geminiApiKey || '',
+                },
+                body: JSON.stringify({
+                    slideTitle: currentSlide.slideTitle,
+                    bodyText: (() => {
+                        // content(불릿 배열) + contentBlocks + bodyText 모두 포함
+                        const parts: string[] = [];
+                        if (currentSlide.content?.length) parts.push(currentSlide.content.join('\n'));
+                        const blockBody = buildEffectiveBodyText(currentSlide.bodyText, currentSlide.contentBlocks);
+                        if (blockBody) parts.push(blockBody);
+                        return parts.join('\n\n') || undefined;
+                    })(),
+                }),
+            });
+            if (res.ok) {
+                const { summarizedText } = await res.json();
+                handleCombinedTextChange(summarizedText);
+            } else {
+                const errBody = await res.json().catch(() => ({}));
+                console.error('[Summarize] API error:', res.status, errBody);
+            }
+        } catch (e) {
+            console.error('[Summarize] Error:', e);
+        } finally {
+            setIsSummarizing(false);
         }
     };
 
@@ -499,6 +567,14 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                         <Pencil size={14} className="text-blue-400" />
                                         원본 슬라이드 대본 <span className="text-[10px] text-slate-500 normal-case">(목차 초안)</span>
                                     </div>
+                                    <button
+                                        onClick={handleSummarize}
+                                        disabled={isSummarizing}
+                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/25 transition-all disabled:opacity-50 normal-case"
+                                    >
+                                        {isSummarizing ? <Loader2 size={10} className="animate-spin" /> : <Scissors size={10} />}
+                                        {isSummarizing ? '정리 중...' : '텍스트 정리'}
+                                    </button>
                                 </label>
                                 <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/10">
                                     여기에 적힌 내용이 앞 단계에서 확정한 &lsquo;슬라이드 내용&rsquo;입니다. 오른쪽 이미지가 이를 정확히 반영했는지 비교해 보세요.
@@ -686,6 +762,26 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
 
                     {/* 프리뷰 하단 액션 바 */}
                     <div className="mt-4 w-full flex flex-col gap-3">
+                        {/* 스타일 고정 토글 */}
+                        {currentSlide.generatedImageUrl && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setUseStyleLock(v => !v)}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                        useStyleLock
+                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                            : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
+                                    }`}
+                                >
+                                    <Lock size={11} />
+                                    {useStyleLock ? '스타일 고정 ON' : '스타일 고정'}
+                                </button>
+                                {useStyleLock && (
+                                    <span className="text-[10px] text-amber-300/70">재생성 시 현재 레이아웃·색감 유지</span>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                             <input
                                 type="text"
@@ -708,6 +804,17 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                 )}
                                 {isRegenerating ? '재생성 중...' : '이미지 재생성'}
                             </button>
+
+                            {currentSlide.previousImageUrl && !isRegenerating && (
+                                <button
+                                    onClick={handleRevertImage}
+                                    title="이전 이미지로 되돌리기"
+                                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-medium transition-all active:scale-95 shrink-0"
+                                >
+                                    <Undo2 size={13} />
+                                    되돌리기
+                                </button>
+                            )}
 
                             {currentSlide.textValidated !== undefined && (
                                 <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold ${currentSlide.textValidated

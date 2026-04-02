@@ -21,9 +21,18 @@ interface StructureAnalysis {
 /**
  * Phase 1: 원고 구조 분석 — 강의 제목, 학습목표, 챕터 구성 + 챕터별 추천 슬라이드 수
  */
-async function analyzeStructure(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number): Promise<StructureAnalysis> {
+async function analyzeStructure(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number, targetAudience?: string, presentationObjective?: string): Promise<StructureAnalysis> {
     const templateDesc = template === 'lecture' ? '강의 교안' : template === 'seminar' ? '세미나/발표' : '자유형 프레젠테이션';
     const targetText = targetCount ? `**총 목표 슬라이드 수: ${targetCount}장** (이 전체 분량에 맞춰 챕터별 슬라이드 수와 챕터 개수를 유연하게 분배하세요. 목표 장수가 10장 이하라면 챕터를 1~3개로 대폭 줄이세요.)` : '적절한 분량으로 촘촘히 분해하세요';
+    const contextBlock = [
+        targetAudience ? `## 타겟 청중\n${targetAudience}` : '',
+        presentationObjective ? `## 발표 목적\n${presentationObjective}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    // 앞+뒤 샘플링: 20KB 초과 문서는 앞 14KB + 뒤 6KB로 전체 구조 파악
+    const textForAnalysis = fullText.length > 20000
+        ? fullText.substring(0, 14000) + '\n\n...[중략: 문서 중간 부분은 생략됨. 위 앞부분과 아래 뒷부분으로 전체 구조를 파악하세요.]...\n\n' + fullText.substring(fullText.length - 6000)
+        : fullText;
 
     const prompt = `당신은 사용자가 제공한 문서만을 기반으로 분석하고 내용을 구성하는 엄격한 AI 연구 보조원(NotebookLM 스타일)이자 프레젠테이션 설계자입니다.
 
@@ -34,12 +43,12 @@ async function analyzeStructure(fullText: string, fileName: string, template: st
 4단계: 아래 JSON 형식에 맞춰 결과를 출력하세요.
 
 아래 원고 텍스트를 깊이 있게 분석하여 ${templateDesc} 슬라이드를 위한 전체 구조를 설계하세요.
-
+${contextBlock ? '\n' + contextBlock + '\n' : ''}
 ## 원고 파일명
 ${fileName}
 
 ## 원고 텍스트
-${fullText.substring(0, 12000)}
+${textForAnalysis}
 
 ## 분석 지침
 1. 원고 전체를 아우르는 **강의 제목**을 생성하세요 (파일명 참고, 원고 내용 기반)
@@ -164,7 +173,7 @@ interface DraftSlide extends SlideContent {
 /**
  * 짧은 텍스트용: 구조 분석 + 전체 슬라이드를 단일 API 호출로 생성
  */
-async function generateAllInOne(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number): Promise<{
+async function generateAllInOne(fullText: string, fileName: string, template: string, config: AIConfig, targetCount?: number, targetAudience?: string, presentationObjective?: string): Promise<{
     overallTitle: string;
     learningObjectives: string[];
     slides: DraftSlide[];
@@ -174,12 +183,16 @@ async function generateAllInOne(fullText: string, fileName: string, template: st
     const isLecture = template === 'lecture';
     const isSeminar = template === 'seminar';
     const targetLengthStr = targetCount ? `정확히 ${targetCount}장` : (isLecture || isSeminar ? '18~28장' : '14~22장');
+    const contextBlock = [
+        targetAudience ? `## 타겟 청중\n${targetAudience}` : '',
+        presentationObjective ? `## 발표 목적\n${presentationObjective}` : '',
+    ].filter(Boolean).join('\n\n');
 
     const prompt = `당신은 사용자가 제공한 문서만을 완벽하게 숙지하고 분석하는 엄격한 AI 연구 보조원(NotebookLM 스타일)이자 슬라이드 설계자입니다.
 아래 원고를 분석하여, 오직 원고의 내용만으로 완성된 ${templateDesc} 슬라이드 세트를 한 번에 생성하세요.
 
 **[중요] 간결하게 요약하려 하지 마세요. 원고의 구체적인 수치, 사례, 상세 설명을 최대한 포함하여 각 슬라이드의 내용을 풍부하고 상세하게 작성하세요.**
-
+${contextBlock ? '\n' + contextBlock + '\n' : ''}
 ## 원고 파일명
 ${fileName}
 
@@ -310,7 +323,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const { fullText, fileName, template, targetSlideCount } = await request.json();
+        const { fullText, fileName, template, targetSlideCount, targetAudience, presentationObjective } = await request.json();
 
         if (!fullText) {
             return NextResponse.json({ error: 'fullText가 필요합니다.' }, { status: 400 });
@@ -332,10 +345,10 @@ export async function POST(request: NextRequest) {
         // 타겟 장수가 20장을 초과하면 AI 출력 토큰을 초과하여 JSON이 잘릴 위험이 매우 높음
         const forceChunking = typeof targetSlideCount === 'number' && targetSlideCount > 20;
 
-        // 목표 장수가 20장 이하이고 텍스트가 15000자 이하라면 챕터 분석 없이 한 번에 순차 생성
-        if (!forceChunking && (fullText.length <= 15000 || (targetSlideCount && targetSlideCount <= 20))) {
+        // 5000자 이하 매우 짧은 문서만 단일 API 호출 — 나머지는 챕터별 생성으로 전체 원고 균등 처리
+        if (!forceChunking && fullText.length <= 5000) {
             console.log('[generate-full-draft] 단일 API 호출 모드 (챕터 무관 순차 생성)');
-            const result = await generateAllInOne(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount);
+            const result = await generateAllInOne(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount, targetAudience, presentationObjective);
             console.log(`[generate-full-draft] 완료: "${result.overallTitle}" → ${result.slides.length}장`);
 
             return NextResponse.json({
@@ -352,7 +365,7 @@ export async function POST(request: NextRequest) {
 
         // Phase 1: 구조 분석
         console.log('[generate-full-draft] Phase 1: 구조 분석...');
-        const structure = await analyzeStructure(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount);
+        const structure = await analyzeStructure(fullText, fileName || 'document', template || 'lecture', config, targetSlideCount, targetAudience, presentationObjective);
         console.log(`[generate-full-draft] 구조: "${structure.overallTitle}" → ${structure.chapters.length}개 챕터`);
 
         // Phase 2: 슬라이드 콘텐츠 생성
@@ -399,7 +412,9 @@ export async function POST(request: NextRequest) {
                     chapter.suggestedSlideCount,
                     structure.styleSuggestions,
                     sectionTemplate,
-                    config
+                    config,
+                    targetAudience,
+                    presentationObjective
                 );
 
                 for (const slide of slides) {

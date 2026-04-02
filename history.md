@@ -1,3 +1,26 @@
+## 📅 2026-03-30
+### [진행 내용]: 슬라이드 내용 요약 기능 (v8.1)
+- **[배경]**: 원고 내용이 많을 때 슬라이드 이미지에 텍스트가 빽빽하게 쌓여 가독성 저하. 사용자가 직접 줄이기 어려움.
+- **[수정 내용]**:
+  1. `src/app/api/summarize-slide/route.ts` 신규: `getAIConfigFromHeaders` + `generateText` 재사용, 제목/본문을 3~5줄로 압축하는 JSON 프롬프트
+  2. `SlideEditor.tsx`: `aiProvider`/`aiApiKey` props 추가, `handleSummarize()` 핸들러
+  3. `SlideEditor.tsx`: 좌측 패널 라벨 오른쪽에 "내용 요약" 버튼 (Scissors 아이콘, 연두색)
+  4. `page.tsx`: SlideEditor에 `aiProvider`, `aiApiKey` props 전달 추가
+- **[핵심 원리]**: 요약 후 기존 `handleCombinedTextChange()` 파싱 로직 재사용. 이미지 재생성은 사용자가 수동으로 진행.
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: 디자인 템플릿 라이브러리 (v8.0)
+- **[배경]**: `configure_visual` 단계에서 슬라이드 디자인 스타일을 자유 텍스트로만 입력하도록 되어 있어, 어떤 내용을 입력해야 할지 모르는 사용자의 진입 장벽이 높았음.
+- **[수정 내용]**:
+  1. `src/utils/designTemplates.ts` 신규 생성: `DesignTemplate` 인터페이스 + 8개 프리셋 템플릿 (미니멀 화이트, 다크 코퍼레이트, 블루 프로페셔널, 컬러풀 에듀케이션, 엘레강트 베이지, 테크 그라데이션, 그린 클린, 직접 입력)
+  2. `page.tsx`: `selectedTemplateId` state + `handleSelectTemplate()` 핸들러 추가
+  3. `configure_visual` UI에 "디자인 템플릿 선택" 3열 카드 그리드 삽입 — 선택 시 보라색 테두리 하이라이트
+  4. 템플릿 선택 → `userStyle` textarea에 해당 프롬프트 자동 채움 (이후 자유 수정 가능)
+  5. "직접 입력" 선택 시 textarea 초기화
+- **[수정 파일]**: `src/utils/designTemplates.ts` (신규), `src/app/page.tsx`
+- **[핵심 원리]**: 템플릿은 결국 `userStyle` 텍스트로 변환되어 기존 `analyzeStyle → StyleProfile → buildSlidePrompt()` 파이프라인을 그대로 통과함. 별도 API 호출 없이 기존 흐름 완전 유지.
+- **[빌드 검증]**: 통과
+
 ## 📅 2026-03-19
 ### [진행 내용]: contentBlocks 누락 버그 수정 (v7.9)
 - **[배경]**: 일부 슬라이드에서 제목만 표시되고 본문 내용이 이미지에 안 나타나는 버그 발견.

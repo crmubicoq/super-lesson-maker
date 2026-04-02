@@ -15,6 +15,7 @@ import SlideContentPreview from '@/components/SlideContentPreview';
 import PipelineProgress from '@/components/PipelineProgress';
 import { gsap } from 'gsap';
 import { jsPDF } from 'jspdf';
+import { DESIGN_TEMPLATES, type DesignTemplate } from '@/utils/designTemplates';
 
 type Step = 'upload' | 'analyzing' | 'draft_preview' | 'configure_visual' | 'generating' | 'draft' | 'animation' | 'export' | 'publish';
 
@@ -72,11 +73,20 @@ export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [slides, setSlides] = useState<Slide[]>([]);
   const [userStyle, setUserStyle] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
+  const [userTemplates, setUserTemplates] = useState<DesignTemplate[]>([]);
+  const [isAddingTemplate, setIsAddingTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
   const [pipelineProgress, setPipelineProgress] = useState<PipelineProgressType | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [styleReferenceImages, setStyleReferenceImages] = useState<string[]>([]);
   const [isRefDragOver, setIsRefDragOver] = useState(false);
+  const [refImageLibrary, setRefImageLibrary] = useState<Array<{id: string, dataUrl: string}>>([]);
   const [slideTemplate, setSlideTemplate] = useState<SlideTemplateId>('lecture');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [presentationObjective, setPresentationObjective] = useState('');
+  const [initialSlideCount, setInitialSlideCount] = useState<number>(20);
+  const [slideCountInput, setSlideCountInput] = useState<string>('20');
 
   // 새 상태: AI 분석 결과
   const [overallTitle, setOverallTitle] = useState('');
@@ -86,6 +96,7 @@ export default function Home() {
   // AI 설정
   const [aiConfig, setAiConfig] = useState<AIConfigState>({ provider: 'gemini', apiKey: '', geminiApiKey: '' });
   const [showSettings, setShowSettings] = useState(false);
+  const [showRefLibraryModal, setShowRefLibraryModal] = useState(false);
 
   // 프로젝트 저장/불러오기
   const [showProjectLoader, setShowProjectLoader] = useState(false);
@@ -96,6 +107,22 @@ export default function Home() {
     try {
       const saved = localStorage.getItem('slm_ai_config');
       if (saved) setAiConfig(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // localStorage에서 사용자 정의 템플릿 복원
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('slm_user_templates');
+      if (saved) setUserTemplates(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // localStorage에서 참고 이미지 라이브러리 복원
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('slm_ref_library');
+      if (saved) setRefImageLibrary(JSON.parse(saved));
     } catch {}
   }, []);
 
@@ -328,7 +355,9 @@ export default function Home() {
             fullText,
             fileName: files.map(f => f.name).join(', '),
             template: slideTemplate,
-            targetSlideCount: targetCount,
+            targetSlideCount: targetCount ?? initialSlideCount,
+            targetAudience,
+            presentationObjective,
           }),
           signal: draftController.signal,
         });
@@ -483,6 +512,85 @@ export default function Home() {
     setIsRefDragOver(false);
   };
 
+  const compressImage = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const maxW = 800;
+        const ratio = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = dataUrl;
+    });
+
+  const handleAddToLibrary = async (dataUrl: string) => {
+    const compressed = await compressImage(dataUrl);
+    const newItem = { id: `lib_${Date.now()}`, dataUrl: compressed };
+    const updated = [...refImageLibrary, newItem];
+    setRefImageLibrary(updated);
+    try {
+      localStorage.setItem('slm_ref_library', JSON.stringify(updated));
+    } catch {
+      console.warn('[RefLibrary] 저장 용량 초과');
+    }
+  };
+
+  const handleDeleteFromLibrary = (id: string) => {
+    const updated = refImageLibrary.filter(item => item.id !== id);
+    setRefImageLibrary(updated);
+    localStorage.setItem('slm_ref_library', JSON.stringify(updated));
+  };
+
+  const handleToggleLibraryImage = (item: { id: string; dataUrl: string }) => {
+    setStyleReferenceImages(prev => {
+      const already = prev.includes(item.dataUrl);
+      if (already) return prev.filter(d => d !== item.dataUrl);
+      if (prev.length >= 5) return prev;
+      return [...prev, item.dataUrl];
+    });
+  };
+
+  const handleSelectTemplate = (template: DesignTemplate) => {
+    setSelectedTemplateId(template.id);
+    if (template.id !== 'custom') {
+      setUserStyle(template.prompt);
+    } else {
+      setUserStyle('');
+    }
+  };
+
+  const handleAddTemplate = () => {
+    if (!newTemplateName.trim() || !userStyle.trim()) return;
+    const newTemplate: DesignTemplate = {
+      id: `user_${Date.now()}`,
+      name: newTemplateName.trim(),
+      description: '사용자 정의 템플릿',
+      emoji: '📌',
+      prompt: userStyle,
+    };
+    const updated = [...userTemplates, newTemplate];
+    setUserTemplates(updated);
+    localStorage.setItem('slm_user_templates', JSON.stringify(updated));
+    setIsAddingTemplate(false);
+    setNewTemplateName('');
+    setSelectedTemplateId(newTemplate.id);
+  };
+
+  const handleDeleteUserTemplate = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = userTemplates.filter(t => t.id !== id);
+    setUserTemplates(updated);
+    localStorage.setItem('slm_user_templates', JSON.stringify(updated));
+    if (selectedTemplateId === id) {
+      setSelectedTemplateId('custom');
+      setUserStyle('');
+    }
+  };
+
   // 사이드바 클릭으로 이전 단계로 이동
   const handleStepClick = (stepNumber: number) => {
     const currentStepNum = getWorkflowStep();
@@ -572,6 +680,86 @@ export default function Home() {
           onLoadProject={handleLoadProject}
         />
 
+        {/* 참고 이미지 라이브러리 모달 */}
+        {showRefLibraryModal && (
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowRefLibraryModal(false); }}
+          >
+            <div className="w-full max-w-2xl bg-[#334155] border border-white/15 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400"><BookOpen size={16} /></div>
+                  <h3 className="text-base font-bold text-white">참고 이미지 라이브러리</h3>
+                  <span className="text-[11px] text-white/40">{refImageLibrary.length}장 저장됨</span>
+                </div>
+                <button onClick={() => setShowRefLibraryModal(false)} className="text-slate-400 hover:text-white transition-colors text-lg leading-none">×</button>
+              </div>
+              {/* 본문 */}
+              <div className="overflow-y-auto p-6">
+                {refImageLibrary.length > 0 ? (
+                  <>
+                    <p className="text-[11px] text-white/40 mb-3">클릭하여 선택/해제 · 최대 5장까지 선택 가능</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {refImageLibrary.map((item) => {
+                        const isSelected = styleReferenceImages.includes(item.dataUrl);
+                        const maxReached = styleReferenceImages.length >= 5 && !isSelected;
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => !maxReached && handleToggleLibraryImage(item)}
+                            className={`relative group aspect-video rounded-xl overflow-hidden border-2 transition-all ${
+                              isSelected
+                                ? 'border-amber-400 ring-2 ring-amber-400/40 cursor-pointer'
+                                : maxReached
+                                  ? 'border-white/10 opacity-40 cursor-not-allowed'
+                                  : 'border-white/15 hover:border-amber-400/50 cursor-pointer'
+                            }`}
+                          >
+                            <img src={item.dataUrl} alt="라이브러리 이미지" className="w-full h-full object-cover" />
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-amber-400/10 flex items-start justify-start p-2">
+                                <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                                  <CheckCircle2 size={12} className="text-slate-900" />
+                                </div>
+                              </div>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteFromLibrary(item.id); }}
+                              className="absolute top-2 right-2 w-5 h-5 rounded bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all text-[11px] leading-none"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <BookOpen size={32} className="text-white/20 mb-3" />
+                    <p className="text-white/40 text-sm mb-1">라이브러리가 비어 있습니다</p>
+                    <p className="text-white/25 text-xs">참고 이미지를 업로드한 뒤 썸네일 위에 마우스를 올려<br/>저장 버튼을 클릭하면 라이브러리에 추가됩니다.</p>
+                  </div>
+                )}
+              </div>
+              {/* 푸터 */}
+              <div className="border-t border-white/10 px-6 py-3 flex items-center justify-between">
+                <span className="text-[11px] text-white/30">
+                  {styleReferenceImages.filter(d => refImageLibrary.some(l => l.dataUrl === d)).length}장 선택됨
+                </span>
+                <button
+                  onClick={() => setShowRefLibraryModal(false)}
+                  className="px-5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-sm font-semibold hover:bg-amber-500/30 transition-all"
+                >
+                  완료
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CONTENT BODY */}
         <div className="flex-1 relative overflow-hidden flex flex-col">
           <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden z-0">
@@ -615,6 +803,8 @@ export default function Home() {
               }}
               styleReferenceImages={styleReferenceImages}
               geminiApiKey={aiConfig.geminiApiKey || (aiConfig.provider === 'gemini' ? aiConfig.apiKey : '')}
+              aiProvider={aiConfig.provider}
+              aiApiKey={aiConfig.apiKey}
               onSaveProject={handleSaveProject}
               saveMessage={saveMessage}
             />
@@ -718,6 +908,73 @@ export default function Home() {
                             ))}
                           </div>
 
+                          {/* 타겟 청중 / 발표 목적 / 슬라이드 장수 */}
+                          <div className="mt-5 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-white/70 mb-1.5">
+                                  타겟 청중
+                                  <span className="ml-1 text-white/30 font-normal">(선택)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={targetAudience}
+                                  onChange={(e) => setTargetAudience(e.target.value)}
+                                  placeholder="예: 4060 지식창업자, 기업 CEO 등"
+                                  className="w-full bg-slate-700/60 border border-white/15 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-white/70 mb-1.5">
+                                  발표 목적
+                                  <span className="ml-1 text-white/30 font-normal">(선택)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={presentationObjective}
+                                  onChange={(e) => setPresentationObjective(e.target.value)}
+                                  placeholder="예: 투자 유치, 교육, 제안서 등"
+                                  className="w-full bg-slate-700/60 border border-white/15 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <label className="text-xs font-bold text-white/70 flex-shrink-0">슬라이드 장수</label>
+                              <div className="flex items-center gap-2 bg-slate-700/60 rounded-xl p-1 border border-white/10">
+                                <button
+                                  onClick={() => {
+                                    const next = Math.max(1, initialSlideCount - 1);
+                                    setInitialSlideCount(next);
+                                    setSlideCountInput(String(next));
+                                  }}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 text-slate-300 font-bold text-sm"
+                                >−</button>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={slideCountInput}
+                                  onChange={(e) => setSlideCountInput(e.target.value)}
+                                  onBlur={() => {
+                                    const v = parseInt(slideCountInput);
+                                    const clamped = isNaN(v) ? 1 : Math.min(50, Math.max(1, v));
+                                    setInitialSlideCount(clamped);
+                                    setSlideCountInput(String(clamped));
+                                  }}
+                                  className="w-10 text-sm font-bold text-center bg-transparent text-blue-400 border-none outline-none"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const next = Math.min(50, initialSlideCount + 1);
+                                    setInitialSlideCount(next);
+                                    setSlideCountInput(String(next));
+                                  }}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 text-slate-300 font-bold text-sm"
+                                >+</button>
+                              </div>
+                              <span className="text-[11px] text-white/30">1 ~ 50장</span>
+                            </div>
+                          </div>
+
                           {/* 분석 시작 버튼 */}
                           <div className="flex justify-center mt-6">
                             <button
@@ -725,7 +982,7 @@ export default function Home() {
                               className="flex items-center gap-3 px-10 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95 group"
                             >
                               <Sparkles size={20} />
-                              분석 시작
+                              슬라이드 초안 생성
                               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                             </button>
                           </div>
@@ -804,18 +1061,96 @@ export default function Home() {
                         슬라이드의 구체적인 추가 및 삭제는 다음 '개별 슬라이드 수정' 단계에서 진행할 수 있습니다.
                       </p>
 
-                      {/* 슬라이드 컨셉 프롬프트 */}
+                      {/* 디자인 템플릿 선택 */}
                       <div className="glass-card p-8">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 rounded-lg bg-violet-500/20 text-violet-400"><Palette size={20} /></div>
-                          <h3 className="text-lg font-bold text-white">슬라이드 컨셉</h3>
+                          <h3 className="text-lg font-bold text-white">디자인 템플릿 선택</h3>
                         </div>
-                        <textarea
-                          placeholder="예: '전체적으로 미니멀하면서 파란색 포인트가 들어간 디자인으로 해줘'"
-                          className="w-full h-32 bg-slate-800/60 border border-white/15 rounded-xl p-4 text-sm focus:border-violet-500/50 outline-none transition-all resize-none"
-                          value={userStyle}
-                          onChange={(e) => setUserStyle(e.target.value)}
-                        />
+                        <div className="grid grid-cols-3 gap-3 mb-3">
+                          {/* 빌트인 템플릿 */}
+                          {DESIGN_TEMPLATES.map((template) => (
+                            <button
+                              key={template.id}
+                              onClick={() => handleSelectTemplate(template)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                selectedTemplateId === template.id
+                                  ? 'border-violet-500 bg-violet-500/20 text-white'
+                                  : 'border-white/10 bg-slate-700/40 text-white/70 hover:border-white/30 hover:bg-slate-700/60'
+                              }`}
+                            >
+                              <div className="text-xl mb-1">{template.emoji}</div>
+                              <div className="text-xs font-semibold leading-tight">{template.name}</div>
+                              <div className="text-[10px] text-white/40 mt-0.5 leading-tight">{template.description}</div>
+                            </button>
+                          ))}
+                          {/* 사용자 정의 템플릿 */}
+                          {userTemplates.map((template) => (
+                            <button
+                              key={template.id}
+                              onClick={() => handleSelectTemplate(template)}
+                              className={`relative p-3 rounded-xl border text-left transition-all group ${
+                                selectedTemplateId === template.id
+                                  ? 'border-violet-500 bg-violet-500/20 text-white'
+                                  : 'border-white/10 bg-slate-700/40 text-white/70 hover:border-white/30 hover:bg-slate-700/60'
+                              }`}
+                            >
+                              <div className="text-xl mb-1">{template.emoji}</div>
+                              <div className="text-xs font-semibold leading-tight pr-4">{template.name}</div>
+                              <div className="text-[10px] text-white/40 mt-0.5 leading-tight">{template.description}</div>
+                              <button
+                                onClick={(e) => handleDeleteUserTemplate(template.id, e)}
+                                className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/40 transition-all text-[10px] leading-none"
+                              >
+                                ×
+                              </button>
+                            </button>
+                          ))}
+                        </div>
+                        {/* 현재 스타일을 템플릿으로 저장 버튼 / 추가 폼 */}
+                        {!isAddingTemplate ? (
+                          <button
+                            onClick={() => { setIsAddingTemplate(true); setNewTemplateName(''); }}
+                            disabled={!userStyle.trim()}
+                            className="flex items-center gap-1.5 text-[11px] text-white/40 hover:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed mb-4 transition-colors"
+                          >
+                            <Plus size={12} /> 현재 스타일을 템플릿으로 저장
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 mb-4">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="템플릿 이름"
+                              value={newTemplateName}
+                              onChange={(e) => setNewTemplateName(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') handleAddTemplate(); if (e.key === 'Escape') setIsAddingTemplate(false); }}
+                              className="flex-1 px-3 py-1.5 bg-slate-700/60 border border-violet-500/40 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/70"
+                            />
+                            <button
+                              onClick={handleAddTemplate}
+                              disabled={!newTemplateName.trim()}
+                              className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-semibold hover:bg-violet-500/30 disabled:opacity-40 transition-all"
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => setIsAddingTemplate(false)}
+                              className="px-3 py-1.5 rounded-lg bg-slate-700/40 border border-white/10 text-white/50 text-xs hover:bg-slate-700/60 transition-all"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-slate-400 mb-2">스타일 상세 설명 <span className="text-slate-500">(템플릿 선택 후 직접 수정 가능)</span></p>
+                          <textarea
+                            placeholder="예: '전체적으로 미니멀하면서 파란색 포인트가 들어간 디자인으로 해줘'"
+                            className="w-full h-32 bg-slate-800/60 border border-white/15 rounded-xl p-4 text-sm focus:border-violet-500/50 outline-none transition-all resize-none"
+                            value={userStyle}
+                            onChange={(e) => setUserStyle(e.target.value)}
+                          />
+                        </div>
                       </div>
 
                       {/* 참고 슬라이드 이미지 업로드 */}
@@ -825,6 +1160,19 @@ export default function Home() {
                           <h3 className="text-lg font-bold text-white">참고 슬라이드 이미지 (선택)</h3>
                         </div>
                         <p className="text-xs text-slate-400 mb-4">원하는 슬라이드 디자인의 참고 이미지를 업로드하면 해당 스타일을 분석하여 반영합니다.</p>
+                        {/* 라이브러리에서 선택 버튼 */}
+                        <button
+                          onClick={() => setShowRefLibraryModal(true)}
+                          className="flex items-center gap-2 w-full px-4 py-3 mb-4 rounded-xl border border-amber-500/25 bg-amber-500/5 text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-300 transition-all text-sm"
+                        >
+                          <BookOpen size={15} />
+                          <span className="font-medium">라이브러리에서 선택</span>
+                          {refImageLibrary.length > 0 && (
+                            <span className="ml-auto text-[11px] bg-amber-500/20 px-2 py-0.5 rounded-full">
+                              {refImageLibrary.length}장 저장됨 · {styleReferenceImages.filter(d => refImageLibrary.some(l => l.dataUrl === d)).length}장 선택
+                            </span>
+                          )}
+                        </button>
                         {styleReferenceImages.length > 0 ? (
                           <div
                             className="space-y-4"
@@ -841,6 +1189,13 @@ export default function Home() {
                                     className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500 transition-all font-bold text-xs"
                                   >
                                     ✕
+                                  </button>
+                                  <button
+                                    onClick={() => handleAddToLibrary(img)}
+                                    title="라이브러리에 저장"
+                                    className="absolute bottom-2 right-2 w-6 h-6 rounded-lg bg-amber-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-amber-500 transition-all"
+                                  >
+                                    <Save size={12} />
                                   </button>
                                 </div>
                               ))}
