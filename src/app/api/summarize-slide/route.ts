@@ -3,21 +3,32 @@ import { getAIConfigFromHeaders, generateText } from '@/utils/aiProvider';
 
 export const maxDuration = 30;
 
-export async function POST(request: NextRequest) {
-    const config = getAIConfigFromHeaders(request.headers);
-    if (!config.apiKey) {
-        return NextResponse.json({ error: 'API 키가 설정되지 않았습니다. 상단 설정에서 API 키를 입력해주세요.' }, { status: 500 });
-    }
+function buildSummarizePrompt(slideTitle: string, bodyText: string, inputLineCount: number): string {
+    return `당신은 강의 교안 슬라이드 편집 전문가입니다.
 
-    try {
-        const { slideTitle, bodyText } = await request.json();
+## 작업
+아래 슬라이드 텍스트를 **강의 교안으로서 가독성이 좋도록** 정리하세요.
 
-        // 입력 줄 수 계산 (안전장치용)
-        const inputLineCount = bodyText
-            ? bodyText.split('\n').filter((l: string) => l.trim()).length
-            : 0;
+## 규칙
+1. 핵심 내용, 수치, 전문 용어는 반드시 보존 (학습에 필요한 정보 삭제 금지)
+2. 같은 말 반복, 불필요한 접속사/수식어, 구어체 연결 표현은 제거
+3. 두 문장이 같은 내용을 말하면 하나로 통합
+4. 명사형/개조식 종결 (예: "~임", "~함", "~필요")
+5. 원문에 없는 내용을 추가하지 말 것
+6. 정리 후 줄 수는 원본(${inputLineCount}줄)의 60~80% 수준 유지 (과도한 축약 금지)
+7. 제목은 핵심 키워드 중심으로 간결하게 (최대 25자)
 
-        const prompt = `당신은 강의 교안 텍스트 어미 교정 전문가입니다.
+## 현재 슬라이드
+제목: ${slideTitle || '(없음)'}
+본문 (${inputLineCount}줄):
+${bodyText || '(없음)'}
+
+## 출력 형식 (JSON만 출력, 다른 텍스트 금지)
+{"slideTitle": "정리된 제목", "body": "정리된 줄1\\n줄2\\n줄3..."}`;
+}
+
+function buildPolishPrompt(slideTitle: string, bodyText: string, inputLineCount: number): string {
+    return `당신은 강의 교안 텍스트 어미 교정 전문가입니다.
 이 슬라이드는 수강생이 학습하는 **강의 교안**입니다.
 
 ## 작업 정의 (매우 중요)
@@ -51,18 +62,41 @@ ${bodyText || '(없음)'}
 
 ## 출력 형식 (JSON만 출력, 다른 텍스트 금지)
 {"slideTitle": "교정된 제목", "body": "교정된 본문 줄1\\n줄2\\n줄3"}`;
+}
 
-        const raw = await generateText(config, prompt, { temperature: 0.3, jsonMode: true });
+export async function POST(request: NextRequest) {
+    const config = getAIConfigFromHeaders(request.headers);
+    if (!config.apiKey) {
+        return NextResponse.json({ error: 'API 키가 설정되지 않았습니다. 상단 설정에서 API 키를 입력해주세요.' }, { status: 500 });
+    }
+
+    try {
+        const { slideTitle, bodyText, mode = 'summarize' } = await request.json();
+
+        const inputLineCount = bodyText
+            ? bodyText.split('\n').filter((l: string) => l.trim()).length
+            : 0;
+
+        const prompt = mode === 'polish'
+            ? buildPolishPrompt(slideTitle, bodyText, inputLineCount)
+            : buildSummarizePrompt(slideTitle, bodyText, inputLineCount);
+
+        const raw = await generateText(config, prompt, { temperature: 0.3, jsonMode: true, traceName: 'summarize-slide' });
         const cleaned = raw.replace(/```json\s*|```\s*/g, '').trim();
         const parsed = JSON.parse(cleaned);
 
-        // 안전장치: AI가 지시를 어기고 줄을 삭제한 경우 원본 본문 복원
         const outputLineCount = parsed.body
             ? parsed.body.split('\n').filter((l: string) => l.trim()).length
             : 0;
-        const finalBody = (inputLineCount > 0 && outputLineCount < inputLineCount)
-            ? bodyText
-            : parsed.body;
+
+        let finalBody: string;
+        if (mode === 'polish') {
+            // 어미 교정: 줄 수가 줄었으면 원본 복원
+            finalBody = (inputLineCount > 0 && outputLineCount < inputLineCount) ? bodyText : parsed.body;
+        } else {
+            // 교안 정리: 40% 미만으로 줄었으면 과도한 축약 → 원본 복원
+            finalBody = (inputLineCount > 0 && outputLineCount < inputLineCount * 0.4) ? bodyText : parsed.body;
+        }
 
         const summarizedText = finalBody
             ? `${parsed.slideTitle}\n${finalBody}`

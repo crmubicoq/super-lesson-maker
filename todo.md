@@ -115,6 +115,28 @@
 - [x] 뒤로 이동 시 기존 slides/이미지 상태 보존
 - [x] 빌드 검증 통과
 
+## [DONE] Milestone 8.3 - 텍스트 정리 개선 (교안 정리 + 어미 교정 분리)
+- [x] `summarize-slide/route.ts`: mode 파라미터 (`'summarize'` | `'polish'`) + 모드별 프롬프트 분리
+- [x] 교안 정리: 중복/구어체 제거, 핵심 보존, 줄 수 60~80% 유지
+- [x] 어미 교정: 기존 프롬프트 유지
+- [x] 안전장치: 교안 정리 40% 미만 축약 시 원본 복원
+- [x] `SlideEditor.tsx`: "교안 정리" + "어미 교정" 버튼 2개 분리
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 8.2 - 자체 API 사용량 트래커 + 대시보드
+- [x] `usageTracker.ts`: JSON 파일 기반 사용량 로깅 유틸
+- [x] `usage-stats/route.ts`: 사용량 요약 API
+- [x] `UsageModal.tsx`: 앱 내 모달 대시보드 (모델별/기능별/날짜별 차트)
+- [x] `aiProvider.ts` + 이미지 API 6개 라우트에 트래킹 연동
+- [x] `page.tsx`: 헤더 차트 아이콘 → UsageModal 연결
+- [x] 빌드 검증 통과
+
+## [DONE] Milestone 8.1.1 - 버그 수정 + README 업데이트
+- [x] summarize-slide 500 오류 수정 (gemini-2.5-pro → flash)
+- [x] 슬라이드 장수 최솟값 5→1, 직접 입력 버그 수정
+- [x] 텍스트 정리 시 content 배열 누락 수정
+- [x] README 전면 업데이트
+
 ## ✨ 최근 완료된 작업 (Recent Achievements)
 - [x] **서버사이드 로컬 폴더 기반 PDF 다운로드 기능 추가**: 브라우저 기본 다운로드 대신 `/api/save-export` 라우트를 구축하여, 프로젝트 최상위의 `outputs/[강의제목]/` 디렉터리에 `슈퍼교안_[강의제목].pdf`와 개별 슬라이드 원본 이미지(`slides/`)들을 한 번에 묶어서 깔끔하게 저장하도록 엔터프라이즈급 내보내기 환경 완성.
 - [x] **Gemini 2.5 Flash 기반 OCR 파이프라인 연동**: 스캔된 PDF/이미지 등 텍스트 메타데이터가 없는 문서 감지 시 빈 값(Hallucination 버그)으로 넘기지 않고 `Gemini Vision` 모델로 파일백하여 전체 텍스트를 정확하게 추출해내는 강력한 호환성 완성.

@@ -3,6 +3,8 @@ import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { trackUsage, extractGeminiTokens } from '@/utils/usageTracker';
+
 
 export const maxDuration = 180;
 
@@ -143,6 +145,7 @@ export async function POST(request: NextRequest) {
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 180000);
+        const startTime = Date.now();
 
         const response = await fetch(API_URL, {
             method: 'POST',
@@ -202,6 +205,17 @@ export async function POST(request: NextRequest) {
         await writeFile(filePath, buffer);
 
         console.log(`[Partial Edit] "${body.instruction}" → ${filename} (${(buffer.length / 1024).toFixed(1)}KB, 1920x1080)`);
+
+        const tokens = extractGeminiTokens(data);
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: 'partial-edit',
+            model: MODEL,
+            provider: 'gemini',
+            inputTokens: tokens.input, outputTokens: tokens.output, totalTokens: tokens.total,
+            durationMs: Date.now() - startTime,
+            success: true,
+        }).catch(() => {});
 
         return NextResponse.json({
             imageUrl: `/generated/slides/${filename}`,

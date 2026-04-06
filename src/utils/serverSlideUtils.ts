@@ -52,7 +52,7 @@ ${chunk}
 7. **1500~2000자**로 풍부하게 요약 (너무 짧게 요약하면 슬라이드 내용이 빈약해집니다)`;
 
             try {
-                const result = await generateText(config, prompt, { temperature: 0.3 });
+                const result = await generateText(config, prompt, { temperature: 0.3, traceName: 'extract-key-points' });
                 extractedParts[idx] = result;
                 console.log(`[extractKeyPoints] 청크 ${idx + 1}/${chunks.length} 핵심 추출 완료 (${result.length}자)`);
             } catch (error) {
@@ -316,6 +316,7 @@ export async function generateSlidesFromPrompt(
             temperature: 0.7,
             jsonMode: true,
             signal: controller.signal,
+            traceName: 'generate-section-slides',
         });
         clearTimeout(timeoutId);
         console.log(`[generateSlidesFromPrompt] "${sectionTitle}" API 응답 수신 (${rawResponse.length}자)`);

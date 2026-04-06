@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
                 temperature: 0.5,
                 jsonMode: true,
                 signal: controller.signal,
+                traceName: 'analyze-toc',
             });
             clearTimeout(timeoutId);
         } catch (fetchError) {

@@ -1,6 +1,7 @@
 /**
  * AI 프로바이더 추상화 — Gemini / Claude 텍스트 생성 통합
  */
+import { trackUsage, extractGeminiTokens, extractClaudeTokens } from './usageTracker';
 
 export type AIProvider = 'gemini' | 'claude';
 
@@ -14,6 +15,8 @@ interface GenerateOptions {
     jsonMode?: boolean;
     signal?: AbortSignal;
     model?: string;
+    /** 사용량 트래킹용: 어떤 기능에서 호출하는지 (예: 'summarize-slide', 'generate-full-draft') */
+    traceName?: string;
 }
 
 /**
@@ -42,6 +45,7 @@ async function callGemini(
 ): Promise<string> {
     const model = options?.model || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const startTime = Date.now();
 
     const response = await fetch(url, {
         method: 'POST',
@@ -61,6 +65,15 @@ async function callGemini(
 
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: options?.traceName || 'gemini-text',
+            model,
+            provider: 'gemini',
+            inputTokens: 0, outputTokens: 0, totalTokens: 0,
+            durationMs: Date.now() - startTime,
+            success: false,
+        }).catch(() => {});
         throw new Error(`Gemini API 오류 (${response.status}): ${err.error?.message || response.statusText}`);
     }
 
@@ -69,6 +82,21 @@ async function callGemini(
     if (!textPart?.text) {
         throw new Error('Gemini API 응답에 텍스트가 없습니다.');
     }
+
+    // 사용량 기록
+    const tokens = extractGeminiTokens(data);
+    trackUsage({
+        timestamp: new Date().toISOString(),
+        traceName: options?.traceName || 'gemini-text',
+        model,
+        provider: 'gemini',
+        inputTokens: tokens.input,
+        outputTokens: tokens.output,
+        totalTokens: tokens.total,
+        durationMs: Date.now() - startTime,
+        success: true,
+    }).catch(() => {});
+
     return textPart.text;
 }
 
@@ -78,6 +106,7 @@ async function callClaude(
     options?: GenerateOptions
 ): Promise<string> {
     const model = options?.model || 'claude-sonnet-4-6';
+    const startTime = Date.now();
 
     // Claude는 JSON 모드가 없으므로 프롬프트에 지시 추가
     const finalPrompt = options?.jsonMode
@@ -102,6 +131,15 @@ async function callClaude(
 
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: options?.traceName || 'claude-text',
+            model,
+            provider: 'claude',
+            inputTokens: 0, outputTokens: 0, totalTokens: 0,
+            durationMs: Date.now() - startTime,
+            success: false,
+        }).catch(() => {});
         throw new Error(`Claude API 오류 (${response.status}): ${err.error?.message || response.statusText}`);
     }
 
@@ -110,6 +148,21 @@ async function callClaude(
     if (!textBlock?.text) {
         throw new Error('Claude API 응답에 텍스트가 없습니다.');
     }
+
+    // 사용량 기록
+    const tokens = extractClaudeTokens(data);
+    trackUsage({
+        timestamp: new Date().toISOString(),
+        traceName: options?.traceName || 'claude-text',
+        model,
+        provider: 'claude',
+        inputTokens: tokens.input,
+        outputTokens: tokens.output,
+        totalTokens: tokens.total,
+        durationMs: Date.now() - startTime,
+        success: true,
+    }).catch(() => {});
+
     return textBlock.text;
 }
 

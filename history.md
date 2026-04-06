@@ -1,3 +1,36 @@
+## 📅 2026-04-06
+### [진행 내용]: 텍스트 정리 기능 개선 — 교안 정리 + 어미 교정 분리 (v8.3)
+- **[배경]**: 기존 "텍스트 정리" 버튼이 어미 교정만 수행하고 실질적인 텍스트 압축이 안 됨. 프롬프트에 "요약/압축 절대 금지"로 지시되어 있었음.
+- **[수정 내용]**:
+  1. `summarize-slide/route.ts`: `mode` 파라미터 추가 (`'summarize'` | `'polish'`), 모드별 프롬프트 분리
+  2. 교안 정리 모드: 중복/구어체/불필요 수식어 제거, 핵심 내용·수치 보존, 줄 수 60~80% 유지
+  3. 어미 교정 모드: 기존 프롬프트 그대로 유지
+  4. 안전장치: 교안 정리는 40% 미만 축약 시 원본 복원, 어미 교정은 줄 수 감소 시 원본 복원
+  5. `SlideEditor.tsx`: 버튼 1개 → 2개 분리 ("✨ 교안 정리" 보라색 + "✂ 어미 교정" 에메랄드색)
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: 자체 API 사용량 트래커 + 대시보드 (v8.2)
+- **[배경]**: API 키 사용량을 모델별/기능별로 확인하고 싶은 요구. Langfuse 등 외부 도구는 별도 서버/Docker 필요해서 부적합.
+- **[수정 내용]**:
+  1. `src/utils/usageTracker.ts` 신규: JSON 파일 기반 사용량 로깅 (최대 10,000건), 토큰 추출 헬퍼, 요약 통계 생성
+  2. `src/app/api/usage-stats/route.ts` 신규: 사용량 요약 API
+  3. `src/components/UsageModal.tsx` 신규: 앱 내 모달 대시보드 (요약 카드, 모델별/기능별/날짜별 바 차트, 최근 호출 로그)
+  4. `aiProvider.ts`: `trackUsage()` + `extractGeminiTokens()`/`extractClaudeTokens()` 연동 (fire-and-forget)
+  5. 이미지 API 6개 라우트에 트래킹 추가 (generate-slide-image, partial-edit, analyze-style, validate-text, extract-pdf-ocr, ocr-analyze)
+  6. `page.tsx`: 헤더에 차트 아이콘 → UsageModal 연결
+  7. 13개 기능 × traceName으로 분류 (어떤 기능이 토큰을 많이 쓰는지 확인 가능)
+- **[핵심 원리]**: 외부 의존성 없이 `data/api-usage.json`에 자동 저장. 환경변수/설정 불필요. 헤더 차트 아이콘 클릭으로 모달 확인.
+- **[빌드 검증]**: 통과
+
+### [진행 내용]: summarize-slide 500 오류 수정 + 슬라이드 장수 입력 버그 등 (v8.1.1)
+- **[수정 내용]**:
+  1. `summarize-slide/route.ts`: `gemini-2.5-pro` → 기본 `gemini-2.5-flash` 모델로 변경 (모델 미지원 오류 해결)
+  2. `SlideEditor.tsx handleSummarize`: 에러 응답 body 로깅 추가
+  3. `page.tsx`: 슬라이드 장수 최솟값 5→1, `slideCountInput` 문자열 분리 상태 패턴으로 직접 입력 버그 수정
+  4. `SlideEditor.tsx handleSummarize`: `currentSlide.content` 배열 누락 수정 (제목만 남고 본문 삭제되던 버그)
+  5. README 전면 업데이트 (v8.1 기능 반영, 6개 카테고리 분류)
+- **[빌드 검증]**: 통과
+
 ## 📅 2026-03-30
 ### [진행 내용]: 슬라이드 내용 요약 기능 (v8.1)
 - **[배경]**: 원고 내용이 많을 때 슬라이드 이미지에 텍스트가 빽빽하게 쌓여 가독성 저하. 사용자가 직접 줄이기 어려움.

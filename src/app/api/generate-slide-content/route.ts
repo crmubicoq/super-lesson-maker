@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
                 temperature: 0.7,
                 jsonMode: true,
                 signal: controller.signal,
+                traceName: 'generate-slide-content',
             });
             clearTimeout(timeoutId);
         } catch (fetchError) {

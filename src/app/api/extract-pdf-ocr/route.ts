@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { trackUsage, extractGeminiTokens } from '@/utils/usageTracker';
+
 
 const MODEL = 'gemini-2.5-flash'; // Google의 최신 멀티모달 모델
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
 2. 각 페이지의 내용이 시작될 때마다 "[Page N]" 형태의 마커를 달아주세요. (단, 페이지 구분이 어려울 경우 그냥 순차적으로 텍스트만 나열해도 됩니다)`;
 
         // Gemini REST API 호출
+        const startTime = Date.now();
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -79,6 +82,17 @@ export async function POST(req: NextRequest) {
 
         const extractedText = textPart.text;
         console.log(`[extract-pdf-ocr] 성공: ${extractedText.length}자 추출 완료`);
+
+        const tokens = extractGeminiTokens(data);
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: 'extract-pdf-ocr',
+            model: MODEL,
+            provider: 'gemini',
+            inputTokens: tokens.input, outputTokens: tokens.output, totalTokens: tokens.total,
+            durationMs: Date.now() - startTime,
+            success: true,
+        }).catch(() => {});
 
         return NextResponse.json({ text: extractedText });
 

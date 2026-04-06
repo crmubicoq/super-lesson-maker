@@ -98,6 +98,7 @@ ${textForAnalysis}
             temperature: 0.5,
             jsonMode: true,
             signal: structureController.signal,
+            traceName: 'analyze-structure',
         });
         clearTimeout(structureTimeout);
     } catch (fetchError: any) {
@@ -268,6 +269,7 @@ cover, title_body, bullet_list, grid_2x2, grid_1x3, content_image, section_divid
             temperature: 0.7,
             jsonMode: true,
             signal: controller.signal,
+            traceName: 'generate-all-in-one',
         });
         clearTimeout(timeoutId);
         console.log(`[generateAllInOne] API 응답 수신 (${rawText.length}자)`);

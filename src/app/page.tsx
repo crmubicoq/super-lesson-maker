@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import FileUploader from '@/components/FileUploader';
-import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2, Settings, FolderOpen, ImagePlus, Save } from 'lucide-react';
+import { FileUp, Sparkles, FileText, Palette, ArrowRight, ArrowLeft, Zap, Download, CheckCircle2, Image, BookOpen, Plus, Minus, Loader2, Settings, FolderOpen, ImagePlus, Save, BarChart3 } from 'lucide-react';
 import SettingsModal, { AIConfigState } from '@/components/SettingsModal';
+import UsageModal from '@/components/UsageModal';
 import ProjectLoader from '@/components/ProjectLoader';
 import { PdfProcessor } from '@/utils/pdfProcessor';
 import { TextProcessor } from '@/utils/textProcessor';
@@ -96,6 +97,7 @@ export default function Home() {
   // AI 설정
   const [aiConfig, setAiConfig] = useState<AIConfigState>({ provider: 'gemini', apiKey: '', geminiApiKey: '' });
   const [showSettings, setShowSettings] = useState(false);
+  const [showUsage, setShowUsage] = useState(false);
   const [showRefLibraryModal, setShowRefLibraryModal] = useState(false);
 
   // 프로젝트 저장/불러오기
@@ -655,6 +657,13 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowUsage(true)}
+              className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-purple-400 transition-all"
+              title="API 사용량"
+            >
+              <BarChart3 size={16} />
+            </button>
+            <button
               onClick={() => setShowSettings(true)}
               className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
               title="AI 설정"
@@ -672,6 +681,9 @@ export default function Home() {
           config={aiConfig}
           onSave={handleSaveAiConfig}
         />
+
+        {/* Usage Modal */}
+        <UsageModal isOpen={showUsage} onClose={() => setShowUsage(false)} />
 
         {/* Project Loader Modal */}
         <ProjectLoader

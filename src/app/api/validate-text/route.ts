@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { trackUsage, extractGeminiTokens } from '@/utils/usageTracker';
+
 
 export const maxDuration = 60;
 
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
+        const startTime = Date.now();
 
         const response = await fetch(API_URL, {
             method: 'POST',
@@ -92,6 +95,17 @@ export async function POST(request: NextRequest) {
         const passed = validation.titleMatch && validation.contentAccuracy >= 90 && (!validation.issues || validation.issues.length === 0);
 
         console.log(`[Text Validation] "${expectedTitle}" → accuracy: ${validation.contentAccuracy}% / passed: ${passed}`);
+
+        const tokens = extractGeminiTokens(data);
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: 'validate-text',
+            model: MODEL,
+            provider: 'gemini',
+            inputTokens: tokens.input, outputTokens: tokens.output, totalTokens: tokens.total,
+            durationMs: Date.now() - startTime,
+            success: true,
+        }).catch(() => {});
 
         return NextResponse.json({
             ...validation,

@@ -22,6 +22,7 @@ import {
     Scissors,
     Undo2,
     Lock,
+    Sparkles,
 } from 'lucide-react';
 
 interface EditTask {
@@ -309,8 +310,8 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
         });
     };
 
-    // 슬라이드 내용 AI 요약
-    const handleSummarize = async () => {
+    // 슬라이드 텍스트 정리 (교안 정리 / 어미 교정)
+    const handleSummarize = async (mode: 'summarize' | 'polish') => {
         if (isSummarizing || !currentSlide) return;
         setIsSummarizing(true);
         try {
@@ -324,13 +325,13 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                 body: JSON.stringify({
                     slideTitle: currentSlide.slideTitle,
                     bodyText: (() => {
-                        // content(불릿 배열) + contentBlocks + bodyText 모두 포함
                         const parts: string[] = [];
                         if (currentSlide.content?.length) parts.push(currentSlide.content.join('\n'));
                         const blockBody = buildEffectiveBodyText(currentSlide.bodyText, currentSlide.contentBlocks);
                         if (blockBody) parts.push(blockBody);
                         return parts.join('\n\n') || undefined;
                     })(),
+                    mode,
                 }),
             });
             if (res.ok) {
@@ -567,14 +568,24 @@ export default function SlideEditor({ slides, onUpdateSlide, onNextStep, onBack,
                                         <Pencil size={14} className="text-blue-400" />
                                         원본 슬라이드 대본 <span className="text-[10px] text-slate-500 normal-case">(목차 초안)</span>
                                     </div>
-                                    <button
-                                        onClick={handleSummarize}
-                                        disabled={isSummarizing}
-                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/25 transition-all disabled:opacity-50 normal-case"
-                                    >
-                                        {isSummarizing ? <Loader2 size={10} className="animate-spin" /> : <Scissors size={10} />}
-                                        {isSummarizing ? '정리 중...' : '텍스트 정리'}
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => handleSummarize('summarize')}
+                                            disabled={isSummarizing}
+                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-400 text-[10px] font-bold hover:bg-purple-500/25 transition-all disabled:opacity-50 normal-case"
+                                        >
+                                            {isSummarizing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                                            교안 정리
+                                        </button>
+                                        <button
+                                            onClick={() => handleSummarize('polish')}
+                                            disabled={isSummarizing}
+                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/25 transition-all disabled:opacity-50 normal-case"
+                                        >
+                                            <Scissors size={10} />
+                                            어미 교정
+                                        </button>
+                                    </div>
                                 </label>
                                 <p className="text-[10px] text-slate-500/80 mb-3 bg-white/5 p-2 rounded border border-white/10">
                                     여기에 적힌 내용이 앞 단계에서 확정한 &lsquo;슬라이드 내용&rsquo;입니다. 오른쪽 이미지가 이를 정확히 반영했는지 비교해 보세요.

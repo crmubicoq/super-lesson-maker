@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { trackUsage, extractGeminiTokens } from '@/utils/usageTracker';
 
 const MODEL = 'gemini-2.0-flash';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
             inlineData: { mimeType: 'image/png', data: img.replace(/^data:image\/\w+;base64,/, '') }
         }));
 
+        const startTime = Date.now();
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -86,6 +88,18 @@ export async function POST(request: NextRequest) {
         styleProfile.referenceImagesBase64 = imagesBase64;
 
         console.log(`[Style Analyzed] ${styleProfile.layoutStyle} / ${styleProfile.mood}`);
+
+        const tokens = extractGeminiTokens(data);
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: 'analyze-style',
+            model: MODEL,
+            provider: 'gemini',
+            inputTokens: tokens.input, outputTokens: tokens.output, totalTokens: tokens.total,
+            durationMs: Date.now() - startTime,
+            success: true,
+        }).catch(() => {});
+
         return NextResponse.json({ styleProfile });
     } catch (error) {
         console.error('[Analyze Style Error]', error);

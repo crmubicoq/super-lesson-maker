@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { trackUsage, extractGeminiTokens } from '@/utils/usageTracker';
+
 
 const MODEL = 'gemini-2.5-flash';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -20,6 +22,7 @@ export async function POST(request: NextRequest) {
 
         const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
+        const startTime = Date.now();
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -89,6 +92,17 @@ No markdown, no explanation.`
         }
 
         const parsed = JSON.parse(textPart.text);
+
+        const tokens = extractGeminiTokens(data);
+        trackUsage({
+            timestamp: new Date().toISOString(),
+            traceName: 'ocr-analyze',
+            model: MODEL,
+            provider: 'gemini',
+            inputTokens: tokens.input, outputTokens: tokens.output, totalTokens: tokens.total,
+            durationMs: Date.now() - startTime,
+            success: true,
+        }).catch(() => {});
 
         return NextResponse.json({
             text: parsed.text || '',
